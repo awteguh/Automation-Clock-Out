@@ -31,7 +31,7 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+  "fixed z-50 flex flex-col bg-background shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
   {
     variants: {
       side: {
@@ -80,8 +80,8 @@ const SheetHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      // Bleed to the content edges so the divider spans full width.
-      "-mx-6 -mt-6 mb-5 flex flex-col gap-1 border-b border-border px-6 py-4 text-left",
+      // Fixed header — stays put while the body scrolls.
+      "flex shrink-0 flex-col gap-1 border-b border-border px-6 py-4 text-left",
       className
     )}
     {...props}
@@ -95,7 +95,8 @@ const SheetFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "-mx-6 -mb-6 mt-5 flex flex-col-reverse gap-2 border-t border-border px-6 py-4 sm:flex-row sm:justify-end",
+      // Fixed footer — stays put while the body scrolls.
+      "flex shrink-0 flex-col-reverse gap-2 border-t border-border px-6 py-4 sm:flex-row sm:justify-end",
       className
     )}
     {...props}

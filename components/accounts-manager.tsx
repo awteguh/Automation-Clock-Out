@@ -281,7 +281,7 @@ export function AccountsManager({
     setDialogOpen(true);
   }
 
-  async function handleSubmit(values: AccountInput) {
+  async function handleSubmit(values: Partial<AccountInput>) {
     const isEdit = Boolean(editing);
     const url = isEdit ? `/api/accounts/${editing!.id}` : "/api/accounts";
     const method = isEdit ? "PATCH" : "POST";
@@ -620,11 +620,11 @@ export function AccountsManager({
         open={!!detailAccount}
         onOpenChange={(open) => !open && setDetailAccount(null)}
       >
-        <SheetContent className="overflow-y-auto sm:max-w-md">
+        <SheetContent className="sm:max-w-md">
           {detailAccount && (
             <>
               <SheetHeader>
-                <div className="mb-2 flex items-center gap-3">
+                <div className="flex items-center gap-3">
                   <div className="relative flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground">
                     <Bot className="h-6 w-6" strokeWidth={1.5} />
                     <span
@@ -644,7 +644,7 @@ export function AccountsManager({
                 </div>
               </SheetHeader>
 
-              <div className="space-y-4 py-6">
+              <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
                 <DetailRow label="ID Karyawan">
                   <span className="font-mono text-sm">
                     {detailAccount.employee_id}

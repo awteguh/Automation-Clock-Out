@@ -36,7 +36,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** When set, the dialog is in "edit" mode. */
   account?: Account | null;
-  onSubmit: (values: AccountInput) => Promise<void>;
+  onSubmit: (values: Partial<AccountInput>) => Promise<void>;
 }
 
 export function AccountFormSheet({
@@ -47,29 +47,31 @@ export function AccountFormSheet({
 }: Props) {
   const [values, setValues] = React.useState<AccountInput>(EMPTY);
   const [saving, setSaving] = React.useState(false);
+  // Snapshot of the values when the sheet opened, to diff on edit.
+  const initialRef = React.useRef<AccountInput>(EMPTY);
 
   // Reset the form whenever the sheet opens (new vs edit).
   React.useEffect(() => {
     if (!open) return;
-    if (account) {
-      setValues({
-        label: account.label,
-        employee_id: account.employee_id,
-        password: account.password,
-        ssid: account.ssid,
-        mac_address: account.mac_address,
-        device_id: account.device_id,
-        latitude: account.latitude,
-        longitude: account.longitude,
-        is_active: account.is_active,
-        scheduled_time: account.scheduled_time ?? "17:00",
-        schedule_enabled: account.schedule_enabled,
-        scheduled_clock_in_time: account.scheduled_clock_in_time ?? "08:00",
-        clock_in_enabled: account.clock_in_enabled,
-      });
-    } else {
-      setValues(EMPTY);
-    }
+    const next: AccountInput = account
+      ? {
+          label: account.label,
+          employee_id: account.employee_id,
+          password: account.password,
+          ssid: account.ssid,
+          mac_address: account.mac_address,
+          device_id: account.device_id,
+          latitude: account.latitude,
+          longitude: account.longitude,
+          is_active: account.is_active,
+          scheduled_time: account.scheduled_time ?? "17:00",
+          schedule_enabled: account.schedule_enabled,
+          scheduled_clock_in_time: account.scheduled_clock_in_time ?? "08:00",
+          clock_in_enabled: account.clock_in_enabled,
+        }
+      : EMPTY;
+    setValues(next);
+    initialRef.current = next;
   }, [open, account]);
 
   function set<K extends keyof AccountInput>(key: K, value: AccountInput[K]) {
@@ -80,7 +82,24 @@ export function AccountFormSheet({
     e.preventDefault();
     setSaving(true);
     try {
-      await onSubmit(values);
+      if (account) {
+        // Edit: kirim HANYA field yang benar-benar berubah (PATCH partial).
+        const init = initialRef.current;
+        const changed: Partial<AccountInput> = {};
+        (Object.keys(values) as (keyof AccountInput)[]).forEach((k) => {
+          if (values[k] !== init[k]) {
+            (changed as Record<string, unknown>)[k] = values[k];
+          }
+        });
+        // Tidak ada yang berubah → tutup saja tanpa request.
+        if (Object.keys(changed).length === 0) {
+          onOpenChange(false);
+          return;
+        }
+        await onSubmit(changed);
+      } else {
+        await onSubmit(values);
+      }
     } finally {
       setSaving(false);
     }
@@ -88,7 +107,7 @@ export function AccountFormSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="overflow-y-auto sm:max-w-md">
+      <SheetContent className="sm:max-w-md">
         <SheetHeader>
           <SheetTitle>
             {account ? "Edit Akun" : "Tambah Akun"}
@@ -98,7 +117,8 @@ export function AccountFormSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
           <div className="grid gap-2">
             <Label htmlFor="label">Label</Label>
             <Input
@@ -199,6 +219,7 @@ export function AccountFormSheet({
             />
             Aktif
           </label>
+          </div>
 
           <SheetFooter>
             <Button
