@@ -14,7 +14,6 @@ import {
   MoreVertical,
   Bot,
   Eye,
-  ChevronRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -135,25 +134,30 @@ function TokenStatus({ expiresAt }: { expiresAt: string | null }) {
  * empty + red as it nears the 72h expiry. Capacity = remaining / 72h.
  */
 function TokenBattery({ expiresAt }: { expiresAt: string | null }) {
-  // Shared battery shell so the empty/no-token state looks identical.
-  const shell = (fill: React.ReactNode, nub = "bg-foreground/40") => (
-    <span className="flex items-center">
-      <span className="relative flex h-6 w-12 items-center rounded-[4px] border-2 border-foreground/40 p-[2px]">
+  // Vertical battery shell: terminal nub on top, fill rises from the bottom.
+  const shell = (
+    fill: React.ReactNode,
+    label: React.ReactNode,
+    tone = "text-muted-foreground"
+  ) => (
+    <span className="flex flex-col items-center">
+      {/* terminal nub, flush on top */}
+      <span className="h-1.5 w-4 rounded-t-[2px] bg-foreground/35" />
+      {/* body with a faint track so empty space still reads as a battery */}
+      <span className="relative flex h-16 w-8 flex-col justify-end overflow-hidden rounded-[5px] border-[1.5px] border-foreground/35 bg-stone/50 p-[3px]">
         {fill}
       </span>
-      <span className={`h-3 w-1 rounded-r-sm ${nub}`} />
+      <span
+        className={`mt-2 font-mono text-[11px] uppercase tracking-[0.1em] ${tone}`}
+      >
+        {label}
+      </span>
     </span>
   );
 
   if (!expiresAt) {
     return (
-      <span
-        className="inline-flex items-center gap-2 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground"
-        title="Belum ada token"
-      >
-        {shell(null)}
-        Tanpa token
-      </span>
+      <span title="Belum ada token">{shell(null, "Kosong")}</span>
     );
   }
 
@@ -174,18 +178,15 @@ function TokenBattery({ expiresAt }: { expiresAt: string | null }) {
   const label = expired ? "Habis" : days > 0 ? `${days} hari` : `${hours} jam`;
 
   return (
-    <span
-      className={`inline-flex items-center gap-2 font-mono text-xs uppercase tracking-[0.08em] ${textTone}`}
-      title={`Token berlaku sampai ${new Date(expiresAt).toLocaleString()}`}
-    >
+    <span title={`Token berlaku sampai ${new Date(expiresAt).toLocaleString()}`}>
       {shell(
         <span
-          className={`h-full rounded-[2px] transition-all ${fillColor}`}
-          style={{ width: `${Math.max(pct, 4)}%` }}
+          className={`w-full rounded-[2px] transition-all ${fillColor}`}
+          style={{ height: `${Math.max(pct, 6)}%` }}
         />,
-        critical ? "bg-destructive" : "bg-foreground/30"
+        label,
+        textTone
       )}
-      {label}
     </span>
   );
 }
@@ -427,51 +428,33 @@ export function AccountsManager({
   return (
     <div className="space-y-10">
       <div className="space-y-8">
-        <div className="flex items-start gap-5">
-          {/* Robot agent — runs the schedule on its own. */}
-          <div className="relative shrink-0">
-            <div className="flex h-16 w-16 animate-float items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Bot className="h-8 w-8" strokeWidth={1.5} />
-            </div>
-            {/* Live "online" beacon. */}
-            <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4">
-              {agentActive && (
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-50" />
-              )}
-              <span
-                className={`relative inline-flex h-4 w-4 rounded-full border-2 border-background ${
-                  agentActive ? "bg-green" : "bg-muted-foreground/40"
-                }`}
-              />
-            </span>
-          </div>
-
-          <div className="max-w-3xl space-y-5">
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="mono-label">Kontrol Agen</p>
-              {agentActive ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-green/20 bg-wash-green px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-green">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green" />
-                  </span>
-                  Agent aktif · memantau jadwal
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-transparent px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
-                  Agent siaga
-                </span>
-              )}
+        <div className="max-w-3xl space-y-5">
+          <div className="flex items-center gap-5">
+            {/* Robot agent — runs the schedule on its own. */}
+            <div className="relative shrink-0">
+              <div className="flex h-16 w-16 animate-float items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <Bot className="h-8 w-8" strokeWidth={1.5} />
+              </div>
+              {/* Live "online" beacon. */}
+              <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4">
+                {agentActive && (
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-50" />
+                )}
+                <span
+                  className={`relative inline-flex h-4 w-4 rounded-full border-2 border-background ${
+                    agentActive ? "bg-green" : "bg-muted-foreground/40"
+                  }`}
+                />
+              </span>
             </div>
             <h1 className="font-display text-5xl font-normal leading-[1.02] tracking-[-0.03em] text-foreground sm:text-6xl">
               Otomasi Terjadwal
             </h1>
-            <p className="text-lg leading-relaxed text-muted-foreground">
-              Agen yang menjalankan tugas sesuai jadwal — berjalan sendiri,
-              kamu cukup mengawasi.
-            </p>
           </div>
+          <p className="text-lg leading-relaxed text-muted-foreground">
+            Agen yang menjalankan tugas sesuai jadwal — berjalan sendiri,
+            kamu cukup mengawasi.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button
@@ -538,96 +521,79 @@ export function AccountsManager({
                 <button
                   type="button"
                   onClick={() => setDetailAccount(account)}
-                  className="group flex items-start gap-3 p-4 text-left transition-colors hover:bg-stone/40"
+                  className="group flex items-start justify-between gap-3 p-4 text-left transition-colors hover:bg-stone/40"
                 >
-                  {/* Avatar robot + beacon status. */}
-                  <div className="relative shrink-0">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                      <Bot className="h-6 w-6" strokeWidth={1.5} />
-                    </div>
-                    <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5">
-                      {agentOn && (
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-50" />
-                      )}
-                      <span
-                        className={`relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-card ${
-                          agentOn ? "bg-green" : "bg-muted-foreground/40"
-                        }`}
-                      />
-                    </span>
-                  </div>
-
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 space-y-3">
+                    {/* Avatar robot + nama, sejajar tengah. */}
+                    <div className="flex items-center gap-3">
+                      <div className="relative shrink-0">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                          <Bot className="h-6 w-6" strokeWidth={1.5} />
+                        </div>
+                        <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5">
+                          {agentOn && (
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-50" />
+                          )}
+                          <span
+                            className={`relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-card ${
+                              agentOn ? "bg-green" : "bg-muted-foreground/40"
+                            }`}
+                          />
+                        </span>
+                      </div>
                       <span className="truncate font-display text-lg tracking-[-0.01em]">
                         {account.label}
                       </span>
                       {!account.is_active && (
                         <Badge variant="secondary">nonaktif</Badge>
                       )}
+                      <StatusBadge account={account} />
                     </div>
-                    <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          agentOn ? "bg-green" : "bg-muted-foreground/50"
-                        }`}
-                      />
-                      {agentOn ? "Agent online" : "Agent siaga"}
-                      <span className="text-muted-foreground/40">·</span>
-                      ID {account.employee_id}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      <ScheduleBadge
-                        label="IN"
-                        time={account.scheduled_clock_in_time}
-                        enabled={account.clock_in_enabled}
-                      />
-                      <ScheduleBadge
-                        label="OUT"
-                        time={account.scheduled_time}
-                        enabled={account.schedule_enabled}
-                      />
+
+                    <div>
+                      <span className="inline-flex items-center gap-2 rounded-sm border border-border bg-stone/50 px-2.5 py-1 font-mono text-xs tracking-[0.04em]">
+                        <span
+                          className={
+                            account.clock_in_enabled
+                              ? "text-foreground"
+                              : "text-muted-foreground/60 line-through"
+                          }
+                        >
+                          IN {account.scheduled_clock_in_time ?? "—"}
+                        </span>
+                        <span className="text-muted-foreground/40">/</span>
+                        <span
+                          className={
+                            account.schedule_enabled
+                              ? "text-foreground"
+                              : "text-muted-foreground/60 line-through"
+                          }
+                        >
+                          OUT {account.scheduled_time ?? "—"}
+                        </span>
+                      </span>
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <StatusBadge account={account} />
+                  <div className="flex shrink-0 items-center self-center">
                     <TokenBattery expiresAt={account.bearer_expires_at} />
-                    <span className="mono-label inline-flex items-center gap-0.5 text-muted-foreground/70 transition-colors group-hover:text-foreground">
-                      Detail
-                      <ChevronRight className="h-3 w-3" />
-                    </span>
                   </div>
                 </button>
 
-                {/* Aksi cepat. */}
+                {/* Perbarui Token + menu titik tiga. */}
                 <div className="flex items-center gap-2 border-t border-border p-3">
                   <Button
-                    size="sm"
-                    variant="secondary"
+                    variant="outline"
                     className="flex-1"
-                    onClick={() => tapOne(account, "in")}
+                    onClick={() => loginOne(account)}
                     disabled={busy?.id === account.id || busyAll !== null}
                   >
-                    {busy?.id === account.id && busy.kind === "in" ? (
+                    {busy?.id === account.id && busy.kind === "login" ? (
                       <Loader2 className="animate-spin" />
                     ) : (
-                      <LogIn />
+                      <KeyRound />
                     )}
-                    Masuk
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => tapOne(account, "out")}
-                    disabled={busy?.id === account.id || busyAll !== null}
-                  >
-                    {busy?.id === account.id && busy.kind === "out" ? (
-                      <Loader2 className="animate-spin" />
-                    ) : (
-                      <LogOut />
-                    )}
-                    Pulang
+                    Perbarui Token
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -637,7 +603,8 @@ export function AccountsManager({
                         disabled={busy?.id === account.id || busyAll !== null}
                         title="Aksi lain"
                       >
-                        {busy?.id === account.id && busy.kind === "login" ? (
+                        {busy?.id === account.id &&
+                        (busy.kind === "in" || busy.kind === "out") ? (
                           <Loader2 className="animate-spin" />
                         ) : (
                           <MoreVertical />
@@ -646,13 +613,24 @@ export function AccountsManager({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => tapOne(account, "in")}
+                        disabled={busy?.id === account.id || busyAll !== null}
+                      >
+                        <LogIn />
+                        Masuk
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => tapOne(account, "out")}
+                        disabled={busy?.id === account.id || busyAll !== null}
+                      >
+                        <LogOut />
+                        Pulang
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setDetailAccount(account)}>
                         <Eye />
                         Lihat detail
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => loginOne(account)}>
-                        <KeyRound />
-                        Perbarui Token
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => openEdit(account)}>
                         <Pencil />

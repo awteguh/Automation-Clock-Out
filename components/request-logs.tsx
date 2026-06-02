@@ -34,7 +34,9 @@ import {
 import type { RequestLog } from "@/lib/types";
 
 function timeOf(iso: string) {
-  return new Date(iso).toLocaleString();
+  const d = new Date(iso);
+  const ms = String(d.getMilliseconds()).padStart(3, "0");
+  return `${d.toLocaleString()}.${ms}`;
 }
 
 export interface RequestLogsHandle {
@@ -113,8 +115,9 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
+          {/* Tinggi dibatasi ±15 baris, sisanya discroll (scrollbar tipis). */}
+          <Table containerClassName="max-h-[640px] thin-scrollbar">
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
                 <TableHead className="whitespace-nowrap">Waktu</TableHead>
                 <TableHead>Akun</TableHead>
