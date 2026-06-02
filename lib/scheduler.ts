@@ -89,7 +89,8 @@ export async function runDueClockOuts(): Promise<RunSummary> {
         account.last_clock_in_run_date !== date &&
         isDue(account.scheduled_clock_in_time, minutes)
       ) {
-        results.push(await tapAttendance(account, "in"));
+        // Automation: cukup tap dengan token tersimpan, tidak pernah login.
+        results.push(await tapAttendance(account, "in", { allowLogin: false }));
         await supabaseAdmin
           .from("accounts")
           .update({ last_clock_in_run_date: date })
@@ -102,7 +103,8 @@ export async function runDueClockOuts(): Promise<RunSummary> {
         account.last_scheduled_run_date !== date &&
         isDue(account.scheduled_time, minutes)
       ) {
-        results.push(await tapAttendance(account, "out"));
+        // Automation: cukup tap dengan token tersimpan, tidak pernah login.
+        results.push(await tapAttendance(account, "out", { allowLogin: false }));
         await supabaseAdmin
           .from("accounts")
           .update({ last_scheduled_run_date: date })

@@ -194,41 +194,20 @@ async function tap(account: Account, token: string): Promise<StepResult> {
  */
 export async function tapAttendance(
   account: Account,
-  action: TapAction
+  action: TapAction,
+  options: { allowLogin?: boolean } = {}
 ): Promise<ClockOutResult> {
+  // allowLogin=true  → boleh login sekali kalau belum punya token (tombol manual).
+  // allowLogin=false → murni tap saja, tidak pernah login (dipakai cron/automation).
+  const { allowLogin = true } = options;
+
   let status: "success" | "error" = "success";
   let message = "";
   let bearer: string | null = account.last_bearer;
-  let needsLogin = !bearer;
 
-  // ── Step 1: tap (using existing token) ──
-  if (!needsLogin && bearer) {
-    try {
-      const t = await tap(account, bearer);
-      await logRequest({
-        account,
-        action,
-        step: "tap",
-        success: t.ok,
-        httpStatus: t.status,
-        body: t.bodyText,
-      });
-      if (!t.ok) {
-        // If it failed (e.g. 401 Unauthorized), we should fallback to login
-        needsLogin = true;
-      } else {
-        status = "success";
-        message = t.message;
-      }
-    } catch (err) {
-      // Network error during tap, let's try from scratch (login -> tap)
-      needsLogin = true;
-    }
-  }
-
-  // ── Step 2: fallback to login -> tap ──
-  if (needsLogin) {
-    status = "success"; // reset
+  // ── Step 1: pastikan ada token. Hanya login kalau diizinkan DAN belum ada
+  // token sama sekali — tidak pernah login ulang ketika token sudah tersedia. ──
+  if (!bearer && allowLogin) {
     try {
       const l = await login(account);
       await logRequest({
@@ -259,8 +238,15 @@ export async function tapAttendance(
         body: message,
       });
     }
+  }
 
-    if (status === "success" && bearer) {
+  // ── Step 2: tap SEKALI saja. Tidak ada login + tap ulang kalau gagal;
+  // token kadaluarsa ditangani lewat tombol "Perbarui Token" manual. ──
+  if (status === "success") {
+    if (!bearer) {
+      status = "error";
+      message = "Tidak ada token. Gunakan \"Perbarui Token\" terlebih dahulu.";
+    } else {
       try {
         const t = await tap(account, bearer);
         await logRequest({
