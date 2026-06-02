@@ -46,10 +46,10 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
       try {
         const res = await fetch("/api/logs?limit=100", { cache: "no-store" });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Failed to load logs");
+        if (!res.ok) throw new Error(json.error || "Gagal memuat log");
         setLogs(json.logs ?? []);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to load logs");
+        toast.error(err instanceof Error ? err.message : "Gagal memuat log");
       } finally {
         setLoading(false);
       }
@@ -62,31 +62,32 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
     React.useImperativeHandle(ref, () => ({ refresh: load }), [load]);
 
     async function clearLogs() {
-      if (!confirm("Clear all request logs?")) return;
+      if (!confirm("Bersihkan semua log permintaan?")) return;
       try {
         const res = await fetch("/api/logs", { method: "DELETE" });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Failed to clear");
-        toast.success("Logs cleared");
+        if (!res.ok) throw new Error(json.error || "Gagal membersihkan");
+        toast.success("Log dibersihkan");
         await load();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to clear");
+        toast.error(err instanceof Error ? err.message : "Gagal membersihkan");
       }
     }
 
     return (
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-xl">Request Logs</CardTitle>
+          <div className="space-y-1.5">
+            <p className="mono-label">Diagnostik</p>
+            <CardTitle>Log Permintaan</CardTitle>
             <CardDescription>
-              Raw login &amp; tap responses ({logs.length} shown, latest 100)
+              Respons mentah login &amp; tap ({logs.length} ditampilkan, 100 terbaru)
             </CardDescription>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={load} disabled={loading}>
               <RefreshCw className={loading ? "animate-spin" : ""} />
-              Refresh
+              Muat Ulang
             </Button>
             <Button
               variant="outline"
@@ -95,7 +96,7 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
               disabled={logs.length === 0}
             >
               <Trash2 />
-              Clear
+              Bersihkan
             </Button>
           </div>
         </CardHeader>
@@ -103,13 +104,13 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="whitespace-nowrap">Time</TableHead>
-                <TableHead>Account</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Step</TableHead>
-                <TableHead>Result</TableHead>
+                <TableHead className="whitespace-nowrap">Waktu</TableHead>
+                <TableHead>Akun</TableHead>
+                <TableHead>Aksi</TableHead>
+                <TableHead>Langkah</TableHead>
+                <TableHead>Hasil</TableHead>
                 <TableHead>HTTP</TableHead>
-                <TableHead>Response</TableHead>
+                <TableHead>Respons</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -119,7 +120,7 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
                     colSpan={7}
                     className="text-center text-muted-foreground py-8"
                   >
-                    {loading ? "Loading…" : "No logs yet."}
+                    {loading ? "Memuat…" : "Belum ada log."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -131,7 +132,7 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
                     <TableCell className="whitespace-nowrap">
                       {log.account_label ?? "—"}
                     </TableCell>
-                    <TableCell className="uppercase">
+                    <TableCell className="font-mono text-xs uppercase tracking-[0.08em]">
                       {log.action ?? "—"}
                     </TableCell>
                     <TableCell>{log.step}</TableCell>
@@ -139,7 +140,7 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
                       {log.success ? (
                         <Badge variant="success">OK</Badge>
                       ) : (
-                        <Badge variant="destructive">Fail</Badge>
+                        <Badge variant="destructive">Gagal</Badge>
                       )}
                     </TableCell>
                     <TableCell>{log.http_status ?? "—"}</TableCell>

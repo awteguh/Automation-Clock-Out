@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,9 +24,9 @@ const EMPTY: AccountInput = {
   latitude: -7.704195315890301,
   longitude: 109.0258285203252,
   is_active: true,
-  scheduled_time: "17:00",
+  scheduled_time: "16:00",
   schedule_enabled: false,
-  scheduled_clock_in_time: "08:00",
+  scheduled_clock_in_time: "07:30",
   clock_in_enabled: false,
 };
 
@@ -38,7 +38,7 @@ interface Props {
   onSubmit: (values: AccountInput) => Promise<void>;
 }
 
-export function AccountFormDialog({
+export function AccountFormSheet({
   open,
   onOpenChange,
   account,
@@ -47,7 +47,7 @@ export function AccountFormDialog({
   const [values, setValues] = React.useState<AccountInput>(EMPTY);
   const [saving, setSaving] = React.useState(false);
 
-  // Reset the form whenever the dialog opens (new vs edit).
+  // Reset the form whenever the sheet opens (new vs edit).
   React.useEffect(() => {
     if (!open) return;
     if (account) {
@@ -86,32 +86,32 @@ export function AccountFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {account ? "Edit account" : "Add account"}
-          </DialogTitle>
-          <DialogDescription>
-            Credentials and tap payload for this account. Stored in Supabase.
-          </DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>
+            {account ? "Edit Akun" : "Tambah Akun"}
+          </SheetTitle>
+          <SheetDescription>
+            Kredensial dan data tap untuk akun ini. Disimpan di Supabase.
+          </SheetDescription>
+        </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="grid gap-4">
+        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="label">Label</Label>
             <Input
               id="label"
               value={values.label}
               onChange={(e) => set("label", e.target.value)}
-              placeholder="e.g. Panpan"
+              placeholder="mis. Panpan"
               required
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="employee_id">Employee ID</Label>
+              <Label htmlFor="employee_id">ID Karyawan</Label>
               <Input
                 id="employee_id"
                 value={values.employee_id}
@@ -133,62 +133,13 @@ export function AccountFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="ssid">SSID</Label>
-              <Input
-                id="ssid"
-                value={values.ssid}
-                onChange={(e) => set("ssid", e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="mac_address">MAC address</Label>
-              <Input
-                id="mac_address"
-                value={values.mac_address}
-                onChange={(e) => set("mac_address", e.target.value)}
-                placeholder="C4:B2:5B:CE:DB:CF"
-                required
-              />
-            </div>
-          </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="device_id">Device ID</Label>
-            <Input
-              id="device_id"
-              value={values.device_id}
-              onChange={(e) => set("device_id", e.target.value)}
-            />
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="latitude">Latitude</Label>
-              <Input
-                id="latitude"
-                type="number"
-                step="any"
-                value={values.latitude}
-                onChange={(e) => set("latitude", parseFloat(e.target.value))}
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="longitude">Longitude</Label>
-              <Input
-                id="longitude"
-                type="number"
-                step="any"
-                value={values.longitude}
-                onChange={(e) => set("longitude", parseFloat(e.target.value))}
-                required
-              />
-            </div>
-          </div>
 
-          <div className="rounded-md border p-3 space-y-3">
+
+
+
+          <div className="rounded-sm border p-3 space-y-3">
             <label className="flex items-center gap-2 text-sm font-medium">
               <input
                 type="checkbox"
@@ -196,11 +147,11 @@ export function AccountFormDialog({
                 onChange={(e) => set("clock_in_enabled", e.target.checked)}
                 className="h-4 w-4 rounded border-input"
               />
-              Auto clock-IN on schedule
+              Absen masuk otomatis sesuai jadwal
             </label>
             <div className="grid gap-2">
               <Label htmlFor="scheduled_clock_in_time">
-                Clock-in time (24h, server timezone)
+                Jam masuk
               </Label>
               <Input
                 id="scheduled_clock_in_time"
@@ -214,7 +165,7 @@ export function AccountFormDialog({
             </div>
           </div>
 
-          <div className="rounded-md border p-3 space-y-3">
+          <div className="rounded-sm border p-3 space-y-3">
             <label className="flex items-center gap-2 text-sm font-medium">
               <input
                 type="checkbox"
@@ -222,11 +173,11 @@ export function AccountFormDialog({
                 onChange={(e) => set("schedule_enabled", e.target.checked)}
                 className="h-4 w-4 rounded border-input"
               />
-              Auto clock-OUT on schedule
+              Absen pulang otomatis sesuai jadwal
             </label>
             <div className="grid gap-2">
               <Label htmlFor="scheduled_time">
-                Clock-out time (24h, server timezone)
+                Jam pulang
               </Label>
               <Input
                 id="scheduled_time"
@@ -235,10 +186,6 @@ export function AccountFormDialog({
                 onChange={(e) => set("scheduled_time", e.target.value)}
                 disabled={!values.schedule_enabled}
               />
-              <p className="text-xs text-muted-foreground">
-                The cron runs every minute and taps in/out at the set times
-                (timezone CRON_TIMEZONE, default Asia/Jakarta).
-              </p>
             </div>
           </div>
 
@@ -249,24 +196,24 @@ export function AccountFormDialog({
               onChange={(e) => set("is_active", e.target.checked)}
               className="h-4 w-4 rounded border-input"
             />
-            Active (included in “Clock Out All” and scheduled runs)
+            Aktif
           </label>
 
-          <DialogFooter className="mt-2">
+          <SheetFooter className="mt-4 pb-8">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={saving}
             >
-              Cancel
+              Batal
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : account ? "Save changes" : "Add account"}
+              {saving ? "Menyimpan…" : account ? "Simpan Perubahan" : "Tambah Akun"}
             </Button>
-          </DialogFooter>
+          </SheetFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -10,6 +10,7 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
+  KeyRound,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AccountFormDialog } from "@/components/account-form-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { AccountFormSheet } from "@/components/account-form-sheet";
 import type {
   Account,
   AccountInput,
@@ -38,10 +49,11 @@ import type {
 } from "@/lib/types";
 
 function StatusBadge({ account }: { account: Account }) {
-  if (!account.last_status) return <Badge variant="outline">Never run</Badge>;
+  if (!account.last_status)
+    return <Badge variant="outline">Belum pernah</Badge>;
   if (account.last_status === "success")
-    return <Badge variant="success">Success</Badge>;
-  return <Badge variant="destructive">Error</Badge>;
+    return <Badge variant="success">Berhasil</Badge>;
+  return <Badge variant="destructive">Gagal</Badge>;
 }
 
 function formatTime(iso: string | null) {
@@ -66,7 +78,7 @@ function ScheduleBadge({
   return (
     <Badge variant={enabled ? "default" : "outline"} className="w-fit">
       {label} {time}
-      {!enabled && " (off)"}
+      {!enabled && " (mati)"}
     </Badge>
   );
 }
@@ -83,16 +95,17 @@ export function AccountsManager({
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Account | null>(null);
+  const [accountToDelete, setAccountToDelete] = React.useState<Account | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/accounts", { cache: "no-store" });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to load accounts");
+      if (!res.ok) throw new Error(json.error || "Gagal memuat akun");
       setAccounts(json.accounts ?? []);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load");
+      toast.error(err instanceof Error ? err.message : "Gagal memuat");
     } finally {
       setLoading(false);
     }
@@ -123,32 +136,32 @@ export function AccountsManager({
         body: JSON.stringify(values),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Save failed");
-      toast.success(isEdit ? "Account updated" : "Account added");
+      if (!res.ok) throw new Error(json.error || "Gagal menyimpan");
+      toast.success(isEdit ? "Akun diperbarui" : "Akun ditambahkan");
       setDialogOpen(false);
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan");
     }
   }
 
   async function handleDelete(account: Account) {
-    if (!confirm(`Delete account "${account.label}"?`)) return;
     try {
       const res = await fetch(`/api/accounts/${account.id}`, {
         method: "DELETE",
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Delete failed");
-      toast.success("Account deleted");
+      if (!res.ok) throw new Error(json.error || "Gagal menghapus");
+      toast.success("Akun dihapus");
+      setAccountToDelete(null);
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Delete failed");
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus");
     }
   }
 
   async function tapOne(account: Account, action: TapAction) {
-    const verb = action === "in" ? "Clock-in" : "Clock-out";
+    const verb = action === "in" ? "Absen masuk" : "Absen pulang";
     const path = action === "in" ? "clock-in" : "clock-out";
     setBusyId(account.id);
     try {
@@ -161,11 +174,35 @@ export function AccountsManager({
         toast.success(`${account.label} — ${verb}: ${result.message}`);
       } else {
         toast.error(
-          `${account.label} — ${verb}: ${result?.message || json.error || "Failed"}`
+          `${account.label} — ${verb}: ${result?.message || json.error || "Gagal"}`
         );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Request failed");
+      toast.error(err instanceof Error ? err.message : "Permintaan gagal");
+    } finally {
+      setBusyId(null);
+      await load();
+      onAfterTap?.();
+    }
+  }
+
+  async function loginOne(account: Account) {
+    setBusyId(account.id);
+    try {
+      const res = await fetch(`/api/accounts/${account.id}/login`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      const result = json.result as { ok: boolean; message: string } | undefined;
+      if (result?.ok) {
+        toast.success(`${account.label} — Login: ${result.message}`);
+      } else {
+        toast.error(
+          `${account.label} — Login: ${result?.message || json.error || "Gagal"}`
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Permintaan gagal");
     } finally {
       setBusyId(null);
       await load();
@@ -174,25 +211,25 @@ export function AccountsManager({
   }
 
   async function tapAll(action: TapAction) {
-    const verb = action === "in" ? "Clocked in" : "Clocked out";
+    const verb = action === "in" ? "Absen masuk" : "Absen pulang";
     const path = action === "in" ? "clock-in-all" : "clock-out-all";
     setBusyAll(action);
     try {
       const res = await fetch(`/api/${path}`, { method: "POST" });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed");
+      if (!res.ok) throw new Error(json.error || "Gagal");
       const { summary } = json as {
         summary: { total: number; success: number; failed: number };
       };
       if (summary.failed === 0) {
-        toast.success(`${verb} ${summary.success}/${summary.total} accounts`);
+        toast.success(`${verb} ${summary.success}/${summary.total} akun`);
       } else {
         toast.warning(
-          `Done: ${summary.success} ok, ${summary.failed} failed (of ${summary.total})`
+          `Selesai: ${summary.success} berhasil, ${summary.failed} gagal (dari ${summary.total})`
         );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Request failed");
+      toast.error(err instanceof Error ? err.message : "Permintaan gagal");
     } finally {
       setBusyAll(null);
       await load();
@@ -203,33 +240,18 @@ export function AccountsManager({
   const activeCount = accounts.filter((a) => a.is_active).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Automation Clock Out
+    <div className="space-y-10">
+      <div className="space-y-8">
+        <div className="max-w-3xl space-y-5">
+          <p className="mono-label">Kontrol Absensi</p>
+          <h1 className="font-display text-5xl font-normal leading-[1.02] tracking-[-0.03em] text-foreground sm:text-6xl">
+            Otomasi Absensi
           </h1>
-          <p className="text-muted-foreground">
-            Manage accounts and clock out attendance in one click.
+          <p className="text-lg leading-relaxed text-muted-foreground">
+            Kelola akun dan catat kehadiran hanya dengan satu klik.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={load} disabled={loading}>
-            <RefreshCw className={loading ? "animate-spin" : ""} />
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={openAdd}>
-            <Plus />
-            Add account
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => tapAll("in")}
-            disabled={busyAll !== null || activeCount === 0}
-          >
-            {busyAll === "in" ? <Loader2 className="animate-spin" /> : <LogIn />}
-            Clock In All ({activeCount})
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             onClick={() => tapAll("out")}
             disabled={busyAll !== null || activeCount === 0}
@@ -239,16 +261,33 @@ export function AccountsManager({
             ) : (
               <LogOut />
             )}
-            Clock Out All ({activeCount})
+            Absen Pulang Semua ({activeCount})
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => tapAll("in")}
+            disabled={busyAll !== null || activeCount === 0}
+          >
+            {busyAll === "in" ? <Loader2 className="animate-spin" /> : <LogIn />}
+            Absen Masuk Semua ({activeCount})
+          </Button>
+          <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
+          <Button variant="outline" onClick={openAdd}>
+            <Plus />
+            Tambah Akun
+          </Button>
+          <Button variant="outline" onClick={load} disabled={loading}>
+            <RefreshCw className={loading ? "animate-spin" : ""} />
+            Muat Ulang
           </Button>
         </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Accounts</CardTitle>
-          <CardDescription>
-            {accounts.length} total · {activeCount} active
+        <CardHeader className="flex flex-row items-end justify-between gap-4 space-y-0">
+          <CardTitle>Akun</CardTitle>
+          <CardDescription className="mono-label pb-1">
+            {accounts.length} total · {activeCount} aktif
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -256,24 +295,24 @@ export function AccountsManager({
             <TableHeader>
               <TableRow>
                 <TableHead>Label</TableHead>
-                <TableHead>Employee ID</TableHead>
-                <TableHead>Schedule</TableHead>
-                <TableHead>Last status</TableHead>
-                <TableHead>Last tap</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>ID Karyawan</TableHead>
+                <TableHead>Jadwal</TableHead>
+                <TableHead>Status terakhir</TableHead>
+                <TableHead>Aktivitas terakhir</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading && accounts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    Loading…
+                    Memuat…
                   </TableCell>
                 </TableRow>
               ) : accounts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No accounts yet. Click “Add account” to get started.
+                    Belum ada akun. Klik “Tambah Akun” untuk memulai.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -283,14 +322,9 @@ export function AccountsManager({
                       <div className="flex items-center gap-2">
                         {account.label}
                         {!account.is_active && (
-                          <Badge variant="secondary">inactive</Badge>
+                          <Badge variant="secondary">nonaktif</Badge>
                         )}
                       </div>
-                      {account.last_message && (
-                        <div className="text-xs text-muted-foreground max-w-xs truncate">
-                          {account.last_message}
-                        </div>
-                      )}
                     </TableCell>
                     <TableCell>{account.employee_id}</TableCell>
                     <TableCell>
@@ -331,7 +365,7 @@ export function AccountsManager({
                           ) : (
                             <LogIn />
                           )}
-                          Clock In
+                          Masuk
                         </Button>
                         <Button
                           size="sm"
@@ -343,7 +377,21 @@ export function AccountsManager({
                           ) : (
                             <LogOut />
                           )}
-                          Clock Out
+                          Pulang
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => loginOne(account)}
+                          disabled={busyId === account.id || busyAll !== null}
+                          title="Perbarui Token"
+                        >
+                          {busyId === account.id ? (
+                            <Loader2 className="animate-spin" />
+                          ) : (
+                            <KeyRound className="h-4 w-4" />
+                          )}
+                          <span className="sr-only">Login</span>
                         </Button>
                         <Button
                           size="icon"
@@ -356,8 +404,8 @@ export function AccountsManager({
                         <Button
                           size="icon"
                           variant="outline"
-                          onClick={() => handleDelete(account)}
-                          title="Delete"
+                          onClick={() => setAccountToDelete(account)}
+                          title="Hapus"
                         >
                           <Trash2 />
                         </Button>
@@ -371,12 +419,32 @@ export function AccountsManager({
         </CardContent>
       </Card>
 
-      <AccountFormDialog
+      <AccountFormSheet
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         account={editing}
         onSubmit={handleSubmit}
       />
+
+      <AlertDialog open={!!accountToDelete} onOpenChange={(open) => !open && setAccountToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Yakin ingin menghapus?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tindakan ini tidak dapat dibatalkan. Akun
+              "{accountToDelete?.label}" akan dihapus permanen dari database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (accountToDelete) {
+                handleDelete(accountToDelete);
+              }
+            }}>Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

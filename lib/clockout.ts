@@ -65,6 +65,10 @@ async function logRequest(params: {
   body: string;
 }) {
   try {
+    const bodyToSave = params.httpStatus === 200 
+      ? "[Success response hidden]" 
+      : (params.body ?? "").slice(0, MAX_BODY);
+
     await supabaseAdmin.from("request_logs").insert({
       account_id: params.account.id,
       account_label: params.account.label,
@@ -72,7 +76,7 @@ async function logRequest(params: {
       step: params.step,
       success: params.success,
       http_status: params.httpStatus,
-      response_body: (params.body ?? "").slice(0, MAX_BODY),
+      response_body: bodyToSave,
     });
   } catch {
     // Never let logging failures break a clock-in/out.
@@ -117,8 +121,34 @@ async function login(account: Account): Promise<StepResult> {
   return { ok: true, status: res.status, bodyText: text, message: "Login OK", token };
 }
 
+/**
+ * Adds a random offset up to `maxMeters` to the given coordinates.
+ */
+function applyJitter(lat: number, lng: number, maxMeters = 50) {
+  const radius = Math.random() * maxMeters;
+  const angle = Math.random() * 2 * Math.PI;
+  
+  const dx = radius * Math.cos(angle); // East-West offset in meters
+  const dy = radius * Math.sin(angle); // North-South offset in meters
+  
+  // Convert meters to degrees
+  // 1 degree latitude = 111,111 meters
+  const deltaLat = dy / 111111;
+  // 1 degree longitude = 111,111 * cos(lat) meters
+  const deltaLng = dx / (111111 * Math.cos(lat * (Math.PI / 180)));
+  
+  return {
+    latitude: lat + deltaLat,
+    longitude: lng + deltaLng,
+  };
+}
+
 /** Call the attendance tap endpoint. Returns the raw outcome (no throw on HTTP errors). */
 async function tap(account: Account, token: string): Promise<StepResult> {
+  const baseLat = -7.704195315890301;
+  const baseLng = 109.0258285203252;
+  const { latitude, longitude } = applyJitter(baseLat, baseLng, 50);
+
   const res = await fetch(`${API_BASE}${TAP_PATH}`, {
     method: "POST",
     headers: {
@@ -127,12 +157,12 @@ async function tap(account: Account, token: string): Promise<StepResult> {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      ssid: account.ssid,
-      mac_address: account.mac_address,
-      device_id: account.device_id,
+      ssid: "LT. 2 Bharata-5G",
+      mac_address: "C4:B2:5B:CE:DB:CF",
+      device_id: "Currently unused",
       location: {
-        latitude: account.latitude,
-        longitude: account.longitude,
+        latitude,
+        longitude,
       },
     }),
     cache: "no-store",
@@ -159,13 +189,8 @@ async function tap(account: Account, token: string): Promise<StepResult> {
 }
 
 /**
- * Full flow for one account: login fresh -> tap -> persist result + logs.
- *
- * The attendance tap endpoint is a toggle — the SAME request both clocks in and
- * clocks out (the server decides based on current state). `action` is therefore
- * only our intent/label, recorded for history and UI. Never throws; always
- * returns a ClockOutResult so batch callers can keep going. Every login/tap
- * HTTP response is recorded raw in request_logs.
+ * Full flow for one account: try tap with existing token -> if fail, login fresh -> tap.
+ * Persists result + logs.
  */
 export async function tapAttendance(
   account: Account,
@@ -173,40 +198,11 @@ export async function tapAttendance(
 ): Promise<ClockOutResult> {
   let status: "success" | "error" = "success";
   let message = "";
-  let bearer: string | null = null;
+  let bearer: string | null = account.last_bearer;
+  let needsLogin = !bearer;
 
-  // ── Step 1: login ──
-  try {
-    const l = await login(account);
-    await logRequest({
-      account,
-      action,
-      step: "login",
-      success: l.ok,
-      httpStatus: l.status,
-      body: l.bodyText,
-    });
-    if (!l.ok) {
-      status = "error";
-      message = l.message;
-    } else {
-      bearer = l.token ?? null;
-    }
-  } catch (err) {
-    status = "error";
-    message = err instanceof Error ? err.message : String(err);
-    await logRequest({
-      account,
-      action,
-      step: "login",
-      success: false,
-      httpStatus: null,
-      body: message,
-    });
-  }
-
-  // ── Step 2: tap (only if we got a token) ──
-  if (status === "success" && bearer) {
+  // ── Step 1: tap (using existing token) ──
+  if (!needsLogin && bearer) {
     try {
       const t = await tap(account, bearer);
       await logRequest({
@@ -217,19 +213,78 @@ export async function tapAttendance(
         httpStatus: t.status,
         body: t.bodyText,
       });
-      status = t.ok ? "success" : "error";
-      message = t.message;
+      if (!t.ok) {
+        // If it failed (e.g. 401 Unauthorized), we should fallback to login
+        needsLogin = true;
+      } else {
+        status = "success";
+        message = t.message;
+      }
     } catch (err) {
-      status = "error";
-      message = err instanceof Error ? err.message : String(err);
+      // Network error during tap, let's try from scratch (login -> tap)
+      needsLogin = true;
+    }
+  }
+
+  // ── Step 2: fallback to login -> tap ──
+  if (needsLogin) {
+    status = "success"; // reset
+    try {
+      const l = await login(account);
       await logRequest({
         account,
         action,
-        step: "tap",
+        step: "login",
+        success: l.ok,
+        httpStatus: l.status,
+        body: l.bodyText,
+      });
+      if (!l.ok) {
+        status = "error";
+        message = l.message;
+        bearer = null;
+      } else {
+        bearer = l.token ?? null;
+      }
+    } catch (err) {
+      status = "error";
+      message = err instanceof Error ? err.message : String(err);
+      bearer = null;
+      await logRequest({
+        account,
+        action,
+        step: "login",
         success: false,
         httpStatus: null,
         body: message,
       });
+    }
+
+    if (status === "success" && bearer) {
+      try {
+        const t = await tap(account, bearer);
+        await logRequest({
+          account,
+          action,
+          step: "tap",
+          success: t.ok,
+          httpStatus: t.status,
+          body: t.bodyText,
+        });
+        status = t.ok ? "success" : "error";
+        message = t.message;
+      } catch (err) {
+        status = "error";
+        message = err instanceof Error ? err.message : String(err);
+        await logRequest({
+          account,
+          action,
+          step: "tap",
+          success: false,
+          httpStatus: null,
+          body: message,
+        });
+      }
     }
   }
 
@@ -262,10 +317,58 @@ export async function tapAttendance(
   };
 }
 
-/** Clock out one account (login fresh -> tap). */
+/**
+ * Manually refresh the login token for an account and save it.
+ */
+export async function refreshLogin(account: Account): Promise<{ ok: boolean; message: string }> {
+  let status: "success" | "error" = "success";
+  let message = "";
+  let bearer: string | null = null;
+  
+  try {
+    const l = await login(account);
+    await logRequest({
+      account,
+      action: account.last_action || "out",
+      step: "login",
+      success: l.ok,
+      httpStatus: l.status,
+      body: l.bodyText,
+    });
+    if (!l.ok) {
+      status = "error";
+      message = l.message;
+    } else {
+      bearer = l.token ?? null;
+      message = "Login OK";
+    }
+  } catch (err) {
+    status = "error";
+    message = err instanceof Error ? err.message : String(err);
+    await logRequest({
+      account,
+      action: account.last_action || "out",
+      step: "login",
+      success: false,
+      httpStatus: null,
+      body: message,
+    });
+  }
+
+  if (bearer) {
+    await supabaseAdmin
+      .from("accounts")
+      .update({ last_bearer: bearer })
+      .eq("id", account.id);
+  }
+
+  return { ok: status === "success", message };
+}
+
+/** Clock out one account (tap fast). */
 export const clockOutAccount = (account: Account) =>
   tapAttendance(account, "out");
 
-/** Clock in one account (login fresh -> tap). */
+/** Clock in one account (tap fast). */
 export const clockInAccount = (account: Account) =>
   tapAttendance(account, "in");
