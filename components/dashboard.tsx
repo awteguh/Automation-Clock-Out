@@ -8,7 +8,7 @@ export function Dashboard() {
   const logsRef = React.useRef<RequestLogsHandle>(null);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-16">
       <AccountsManager onAfterTap={() => logsRef.current?.refresh()} />
       <RequestLogs ref={logsRef} />
     </div>

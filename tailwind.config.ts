@@ -14,12 +14,35 @@ const config: Config = {
       screens: { "2xl": "1400px" },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-body)", "Inter", "Arial", "ui-sans-serif", "system-ui"],
+        display: [
+          "var(--font-display)",
+          "Space Grotesk",
+          "Inter",
+          "ui-sans-serif",
+          "system-ui",
+        ],
+        mono: ["var(--font-mono)", "ui-monospace", "Menlo", "monospace"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        green: "hsl(var(--green))",
+        navy: "hsl(var(--navy))",
+        action: "hsl(var(--action-blue))",
+        coral: {
+          DEFAULT: "hsl(var(--coral))",
+          soft: "hsl(var(--coral-soft))",
+        },
+        stone: "hsl(var(--stone))",
+        wash: {
+          green: "hsl(var(--wash-green))",
+          blue: "hsl(var(--wash-blue))",
+        },
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -50,9 +73,13 @@ const config: Config = {
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        // Cohere radius scale
+        xs: "4px",
+        sm: "8px",
+        md: "16px",
+        lg: "22px", // signature media-card radius
+        xl: "30px", // filter pills
+        pill: "32px", // primary CTA buttons
       },
       keyframes: {
         "accordion-down": {
