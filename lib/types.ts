@@ -18,6 +18,7 @@ export interface Account {
   clock_in_enabled: boolean;
   last_clock_in_run_date: string | null; // 'YYYY-MM-DD'
   last_bearer: string | null;
+  bearer_expires_at: string | null; // ISO timestamp: last login + 72h
   last_status: "success" | "error" | null;
   last_message: string | null;
   last_action: TapAction | null;

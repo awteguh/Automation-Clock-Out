@@ -147,7 +147,7 @@ export function AccountFormSheet({
                 onChange={(e) => set("clock_in_enabled", e.target.checked)}
                 className="h-4 w-4 rounded border-input"
               />
-              Absen masuk otomatis sesuai jadwal
+              Jalankan "Masuk" otomatis sesuai jadwal
             </label>
             <div className="grid gap-2">
               <Label htmlFor="scheduled_clock_in_time">
@@ -173,7 +173,7 @@ export function AccountFormSheet({
                 onChange={(e) => set("schedule_enabled", e.target.checked)}
                 className="h-4 w-4 rounded border-input"
               />
-              Absen pulang otomatis sesuai jadwal
+              Jalankan "Pulang" otomatis sesuai jadwal
             </label>
             <div className="grid gap-2">
               <Label htmlFor="scheduled_time">

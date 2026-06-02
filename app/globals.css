@@ -78,3 +78,19 @@
     @apply font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground;
   }
 }
+
+@layer utilities {
+  /* Gentle idle bob — gives the autonomous "agent" a sense of life. */
+  @keyframes agent-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+  .animate-float {
+    animation: agent-float 4s ease-in-out infinite;
+  }
+}

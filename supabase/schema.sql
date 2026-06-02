@@ -30,6 +30,7 @@ create table if not exists public.accounts (
 
   -- result bookkeeping
   last_bearer        text,
+  bearer_expires_at  timestamptz,                 -- last login + 72h (token expiry)
   last_status        text,                        -- 'success' | 'error'
   last_message       text,
   last_action        text,                        -- 'in' | 'out' (last tap intent)

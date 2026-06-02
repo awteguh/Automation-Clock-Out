@@ -12,6 +12,9 @@ import {
   Loader2,
   KeyRound,
   MoreVertical,
+  Bot,
+  Eye,
+  ChevronRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,20 +27,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,6 +63,116 @@ function StatusBadge({ account }: { account: Account }) {
 function formatTime(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString();
+}
+
+/** One labelled row inside the detail sheet. */
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5 border-b border-border pb-4 last:border-0">
+      <p className="mono-label">{label}</p>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+// Token lifetime — must match TOKEN_TTL_HOURS in lib/clockout.ts.
+const TOKEN_TTL_MS = 72 * 3600 * 1000;
+
+/** Shows token expiry: time remaining, valid-until, and the implied last login. */
+function TokenStatus({ expiresAt }: { expiresAt: string | null }) {
+  if (!expiresAt) {
+    return (
+      <span className="text-sm text-muted-foreground">
+        Belum ada token — gunakan “Perbarui Token”.
+      </span>
+    );
+  }
+  const exp = new Date(expiresAt).getTime();
+  const ms = exp - Date.now();
+  const expired = ms <= 0;
+  const soon = !expired && ms < 12 * 3600 * 1000;
+
+  const totalMin = Math.abs(Math.round(ms / 60000));
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const rel = `${days > 0 ? `${days} hari ` : ""}${hours} jam`;
+
+  const tone = expired
+    ? "border-destructive/30 bg-destructive/5 text-destructive"
+    : soon
+      ? "border-coral-soft bg-coral/10 text-foreground"
+      : "border-green/20 bg-wash-green text-green";
+  const dot = expired ? "bg-destructive" : soon ? "bg-coral" : "bg-green";
+
+  const loginAt = new Date(exp - TOKEN_TTL_MS);
+
+  return (
+    <div className="space-y-1.5">
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.08em] ${tone}`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+        {expired ? `Kadaluarsa ${rel} lalu` : `${rel} lagi`}
+      </span>
+      <p className="text-sm text-muted-foreground">
+        Berlaku sampai {new Date(expiresAt).toLocaleString()}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Login terakhir {loginAt.toLocaleString()}
+      </p>
+    </div>
+  );
+}
+
+/** Today's date as 'YYYY-MM-DD' in WIB — matches the scheduler's run-date guard. */
+function todayInJakarta(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+/**
+ * Shows when the cron last auto-ran each action for an account. The values are
+ * the daily run-date guards (`last_clock_in_run_date` / `last_scheduled_run_date`),
+ * so they are dates, not timestamps. "hari ini" means the guard is active and the
+ * scheduler will skip that action until tomorrow.
+ */
+function AutoRunCell({ account }: { account: Account }) {
+  const today = todayInJakarta();
+  const row = (label: string, date: string | null) => (
+    <div className="flex items-center gap-2">
+      <span className="w-8 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </span>
+      {date ? (
+        <span className="text-sm">
+          {date}
+          {date === today && (
+            <span className="ml-1.5 rounded-xs bg-wash-green px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-green">
+              hari ini
+            </span>
+          )}
+        </span>
+      ) : (
+        <span className="text-sm text-muted-foreground">—</span>
+      )}
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-1">
+      {row("IN", account.last_clock_in_run_date)}
+      {row("OUT", account.last_scheduled_run_date)}
+    </div>
+  );
 }
 
 function ScheduleBadge({
@@ -109,6 +215,7 @@ export function AccountsManager({
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Account | null>(null);
   const [accountToDelete, setAccountToDelete] = React.useState<Account | null>(null);
+  const [detailAccount, setDetailAccount] = React.useState<Account | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -174,7 +281,7 @@ export function AccountsManager({
   }
 
   async function tapOne(account: Account, action: TapAction) {
-    const verb = action === "in" ? "Absen masuk" : "Absen pulang";
+    const verb = action === "in" ? "Masuk" : "Pulang";
     const path = action === "in" ? "clock-in" : "clock-out";
     setBusy({ id: account.id, kind: action });
     try {
@@ -224,7 +331,7 @@ export function AccountsManager({
   }
 
   async function tapAll(action: TapAction) {
-    const verb = action === "in" ? "Absen masuk" : "Absen pulang";
+    const verb = action === "in" ? "Masuk" : "Pulang";
     const path = action === "in" ? "clock-in-all" : "clock-out-all";
     setBusyAll(action);
     try {
@@ -251,18 +358,60 @@ export function AccountsManager({
   }
 
   const activeCount = accounts.filter((a) => a.is_active).length;
+  // The agent is "on duty" when at least one active account has a schedule it
+  // can run autonomously.
+  const agentActive = accounts.some(
+    (a) => a.is_active && (a.schedule_enabled || a.clock_in_enabled)
+  );
 
   return (
     <div className="space-y-10">
       <div className="space-y-8">
-        <div className="max-w-3xl space-y-5">
-          <p className="mono-label">Kontrol Absensi</p>
-          <h1 className="font-display text-5xl font-normal leading-[1.02] tracking-[-0.03em] text-foreground sm:text-6xl">
-            Otomasi Absensi
-          </h1>
-          <p className="text-lg leading-relaxed text-muted-foreground">
-            Kelola akun dan catat kehadiran hanya dengan satu klik.
-          </p>
+        <div className="flex items-start gap-5">
+          {/* Robot agent — runs the schedule on its own. */}
+          <div className="relative shrink-0">
+            <div className="flex h-16 w-16 animate-float items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Bot className="h-8 w-8" strokeWidth={1.5} />
+            </div>
+            {/* Live "online" beacon. */}
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4">
+              {agentActive && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-50" />
+              )}
+              <span
+                className={`relative inline-flex h-4 w-4 rounded-full border-2 border-background ${
+                  agentActive ? "bg-green" : "bg-muted-foreground/40"
+                }`}
+              />
+            </span>
+          </div>
+
+          <div className="max-w-3xl space-y-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="mono-label">Kontrol Agen</p>
+              {agentActive ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-green/20 bg-wash-green px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-green">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-75" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green" />
+                  </span>
+                  Agent aktif · memantau jadwal
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-transparent px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                  Agent siaga
+                </span>
+              )}
+            </div>
+            <h1 className="font-display text-5xl font-normal leading-[1.02] tracking-[-0.03em] text-foreground sm:text-6xl">
+              Otomasi Terjadwal
+            </h1>
+            <p className="text-lg leading-relaxed text-muted-foreground">
+              Agen yang menjalankan tugas sesuai jadwal — berjalan sendiri,
+              kamu cukup mengawasi.
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button
@@ -274,7 +423,7 @@ export function AccountsManager({
             ) : (
               <LogOut />
             )}
-            Absen Pulang Semua ({activeCount})
+            Pulang Semua ({activeCount})
           </Button>
           <Button
             variant="secondary"
@@ -282,7 +431,7 @@ export function AccountsManager({
             disabled={busyAll !== null || activeCount === 0}
           >
             {busyAll === "in" ? <Loader2 className="animate-spin" /> : <LogIn />}
-            Absen Masuk Semua ({activeCount})
+            Masuk Semua ({activeCount})
           </Button>
           <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
           <Button variant="outline" onClick={openAdd}>
@@ -296,151 +445,175 @@ export function AccountsManager({
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-end justify-between gap-4 space-y-0">
-          <CardTitle>Akun</CardTitle>
-          <CardDescription className="mono-label pb-1">
+      <div className="space-y-5">
+        <div className="flex items-end justify-between gap-4">
+          <h2 className="font-display text-2xl font-normal tracking-[-0.01em]">
+            Akun
+          </h2>
+          <p className="mono-label">
             {accounts.length} total · {activeCount} aktif
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Label</TableHead>
-                <TableHead>ID Karyawan</TableHead>
-                <TableHead>Jadwal</TableHead>
-                <TableHead>Status terakhir</TableHead>
-                <TableHead>Aktivitas terakhir</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && accounts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    Memuat…
-                  </TableCell>
-                </TableRow>
-              ) : accounts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    Belum ada akun. Klik “Tambah Akun” untuk memulai.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                accounts.map((account) => (
-                  <TableRow key={account.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {account.label}
-                        {!account.is_active && (
-                          <Badge variant="secondary">nonaktif</Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{account.employee_id}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <ScheduleBadge
-                          label="IN"
-                          time={account.scheduled_clock_in_time}
-                          enabled={account.clock_in_enabled}
-                        />
-                        <ScheduleBadge
-                          label="OUT"
-                          time={account.scheduled_time}
-                          enabled={account.schedule_enabled}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge account={account} />
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {account.last_action && (
-                        <span className="mr-1 font-medium uppercase">
-                          {account.last_action}
-                        </span>
+          </p>
+        </div>
+
+        {loading && accounts.length === 0 ? (
+          <div className="rounded-sm border border-border py-12 text-center text-sm text-muted-foreground">
+            Memuat…
+          </div>
+        ) : accounts.length === 0 ? (
+          <div className="rounded-sm border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
+            Belum ada akun. Klik “Tambah Akun” untuk memulai.
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {accounts.map((account) => {
+              const agentOn =
+                account.is_active &&
+                (account.schedule_enabled || account.clock_in_enabled);
+              return (
+              <div
+                key={account.id}
+                className="flex flex-col overflow-hidden rounded-sm border border-border bg-card transition-colors hover:border-foreground/25"
+              >
+                {/* Ringkasan ala konsol agen — klik untuk membuka detail. */}
+                <button
+                  type="button"
+                  onClick={() => setDetailAccount(account)}
+                  className="group flex items-start gap-3 p-4 text-left transition-colors hover:bg-stone/40"
+                >
+                  {/* Avatar robot + beacon status. */}
+                  <div className="relative shrink-0">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                      <Bot className="h-6 w-6" strokeWidth={1.5} />
+                    </div>
+                    <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5">
+                      {agentOn && (
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-50" />
                       )}
-                      {formatTime(account.last_clock_out_at)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => tapOne(account, "in")}
-                          disabled={busy?.id === account.id || busyAll !== null}
-                        >
-                          {busy?.id === account.id && busy.kind === "in" ? (
-                            <Loader2 className="animate-spin" />
-                          ) : (
-                            <LogIn />
-                          )}
-                          Masuk
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => tapOne(account, "out")}
-                          disabled={busy?.id === account.id || busyAll !== null}
-                        >
-                          {busy?.id === account.id && busy.kind === "out" ? (
-                            <Loader2 className="animate-spin" />
-                          ) : (
-                            <LogOut />
-                          )}
-                          Pulang
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              disabled={
-                                busy?.id === account.id || busyAll !== null
-                              }
-                              title="Aksi lain"
-                            >
-                              {busy?.id === account.id &&
-                              busy.kind === "login" ? (
-                                <Loader2 className="animate-spin" />
-                              ) : (
-                                <MoreVertical />
-                              )}
-                              <span className="sr-only">Aksi lain</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => loginOne(account)}
-                            >
-                              <KeyRound />
-                              Perbarui Token
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEdit(account)}>
-                              <Pencil />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setAccountToDelete(account)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 />
-                              Hapus
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                      <span
+                        className={`relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-card ${
+                          agentOn ? "bg-green" : "bg-muted-foreground/40"
+                        }`}
+                      />
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-display text-lg tracking-[-0.01em]">
+                        {account.label}
+                      </span>
+                      {!account.is_active && (
+                        <Badge variant="secondary">nonaktif</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          agentOn ? "bg-green" : "bg-muted-foreground/50"
+                        }`}
+                      />
+                      {agentOn ? "Agent online" : "Agent siaga"}
+                      <span className="text-muted-foreground/40">·</span>
+                      ID {account.employee_id}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <ScheduleBadge
+                        label="IN"
+                        time={account.scheduled_clock_in_time}
+                        enabled={account.clock_in_enabled}
+                      />
+                      <ScheduleBadge
+                        label="OUT"
+                        time={account.scheduled_time}
+                        enabled={account.schedule_enabled}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <StatusBadge account={account} />
+                    <span className="mono-label inline-flex items-center gap-0.5 text-muted-foreground/70 transition-colors group-hover:text-foreground">
+                      Detail
+                      <ChevronRight className="h-3 w-3" />
+                    </span>
+                  </div>
+                </button>
+
+                {/* Aksi cepat. */}
+                <div className="flex items-center gap-2 border-t border-border p-3">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => tapOne(account, "in")}
+                    disabled={busy?.id === account.id || busyAll !== null}
+                  >
+                    {busy?.id === account.id && busy.kind === "in" ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <LogIn />
+                    )}
+                    Masuk
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => tapOne(account, "out")}
+                    disabled={busy?.id === account.id || busyAll !== null}
+                  >
+                    {busy?.id === account.id && busy.kind === "out" ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <LogOut />
+                    )}
+                    Pulang
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        disabled={busy?.id === account.id || busyAll !== null}
+                        title="Aksi lain"
+                      >
+                        {busy?.id === account.id && busy.kind === "login" ? (
+                          <Loader2 className="animate-spin" />
+                        ) : (
+                          <MoreVertical />
+                        )}
+                        <span className="sr-only">Aksi lain</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setDetailAccount(account)}>
+                        <Eye />
+                        Lihat detail
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => loginOne(account)}>
+                        <KeyRound />
+                        Perbarui Token
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEdit(account)}>
+                        <Pencil />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setAccountToDelete(account)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 />
+                        Hapus
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <AccountFormSheet
         open={dialogOpen}
@@ -448,6 +621,110 @@ export function AccountsManager({
         account={editing}
         onSubmit={handleSubmit}
       />
+
+      <Sheet
+        open={!!detailAccount}
+        onOpenChange={(open) => !open && setDetailAccount(null)}
+      >
+        <SheetContent className="overflow-y-auto sm:max-w-md">
+          {detailAccount && (
+            <>
+              <SheetHeader>
+                <div className="mb-2 flex items-center gap-3">
+                  <div className="relative flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                    <Bot className="h-6 w-6" strokeWidth={1.5} />
+                    <span
+                      className={`absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-background ${
+                        detailAccount.is_active &&
+                        (detailAccount.schedule_enabled ||
+                          detailAccount.clock_in_enabled)
+                          ? "bg-green"
+                          : "bg-muted-foreground/40"
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <SheetTitle>{detailAccount.label}</SheetTitle>
+                    <SheetDescription>Detail akun &amp; status agen</SheetDescription>
+                  </div>
+                </div>
+              </SheetHeader>
+
+              <div className="space-y-4 py-6">
+                <DetailRow label="ID Karyawan">
+                  <span className="font-mono text-sm">
+                    {detailAccount.employee_id}
+                  </span>
+                </DetailRow>
+                <DetailRow label="Status">
+                  <div className="flex items-center gap-2">
+                    <StatusBadge account={detailAccount} />
+                    {!detailAccount.is_active && (
+                      <Badge variant="secondary">nonaktif</Badge>
+                    )}
+                  </div>
+                </DetailRow>
+                {detailAccount.last_message && (
+                  <DetailRow label="Pesan terakhir">
+                    <p className="text-sm text-muted-foreground">
+                      {detailAccount.last_message}
+                    </p>
+                  </DetailRow>
+                )}
+                <DetailRow label="Jadwal">
+                  <div className="flex flex-wrap gap-1.5">
+                    <ScheduleBadge
+                      label="IN"
+                      time={detailAccount.scheduled_clock_in_time}
+                      enabled={detailAccount.clock_in_enabled}
+                    />
+                    <ScheduleBadge
+                      label="OUT"
+                      time={detailAccount.scheduled_time}
+                      enabled={detailAccount.schedule_enabled}
+                    />
+                  </div>
+                </DetailRow>
+                <DetailRow label="Aktivitas terakhir">
+                  <span className="text-sm">
+                    {detailAccount.last_action && (
+                      <span className="mr-1 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground">
+                        {detailAccount.last_action}
+                      </span>
+                    )}
+                    {formatTime(detailAccount.last_clock_out_at)}
+                  </span>
+                </DetailRow>
+                <DetailRow label="Token">
+                  <TokenStatus expiresAt={detailAccount.bearer_expires_at} />
+                </DetailRow>
+                <DetailRow label="Terakhir auto-run">
+                  <AutoRunCell account={detailAccount} />
+                </DetailRow>
+              </div>
+
+              <SheetFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setDetailAccount(null)}
+                >
+                  Tutup
+                </Button>
+                <Button
+                  onClick={() => {
+                    const a = detailAccount;
+                    setDetailAccount(null);
+                    openEdit(a);
+                  }}
+                >
+                  <Pencil />
+                  Edit
+                </Button>
+              </SheetFooter>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={!!accountToDelete} onOpenChange={(open) => !open && setAccountToDelete(null)}>
         <AlertDialogContent>

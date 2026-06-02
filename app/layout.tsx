@@ -21,8 +21,8 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Otomasi Absensi",
-  description: "Dasbor absensi otomatis untuk banyak akun",
+  title: "Otomasi Terjadwal",
+  description: "Dasbor agen otomatis terjadwal untuk banyak akun",
 };
 
 export default function RootLayout({

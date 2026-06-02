@@ -33,6 +33,15 @@ function extractToken(payload: unknown): string | null {
   return null;
 }
 
+// The attendance API issues tokens valid for 72 hours.
+const TOKEN_TTL_HOURS = 72;
+
+/** Expiry (ISO) for a token obtained now: login time + 72h. Null when no token. */
+function computeBearerExpiry(token: string | null): string | null {
+  if (!token) return null;
+  return new Date(Date.now() + TOKEN_TTL_HOURS * 3600 * 1000).toISOString();
+}
+
 async function readBody(res: Response): Promise<{ json: any; text: string }> {
   const text = await res.text();
   let json: any = null;
@@ -204,10 +213,14 @@ export async function tapAttendance(
   let status: "success" | "error" = "success";
   let message = "";
   let bearer: string | null = account.last_bearer;
+  // Track whether we logged in this run, so we only refresh the expiry stamp
+  // when a NEW token was actually obtained (not when reusing the old one).
+  let attemptedLogin = false;
 
   // ── Step 1: pastikan ada token. Hanya login kalau diizinkan DAN belum ada
   // token sama sekali — tidak pernah login ulang ketika token sudah tersedia. ──
   if (!bearer && allowLogin) {
+    attemptedLogin = true;
     try {
       const l = await login(account);
       await logRequest({
@@ -275,16 +288,19 @@ export async function tapAttendance(
   }
 
   // Persist the outcome on the account row.
-  await supabaseAdmin
-    .from("accounts")
-    .update({
-      last_bearer: bearer,
-      last_status: status,
-      last_message: message,
-      last_action: action,
-      last_clock_out_at: new Date().toISOString(),
-    })
-    .eq("id", account.id);
+  const update: Record<string, unknown> = {
+    last_bearer: bearer,
+    last_status: status,
+    last_message: message,
+    last_action: action,
+    last_clock_out_at: new Date().toISOString(),
+  };
+  // Only touch the expiry when we actually attempted a login this run:
+  // fresh token → now + 72h, failed login (no token) → cleared.
+  if (attemptedLogin) {
+    update.bearer_expires_at = computeBearerExpiry(bearer);
+  }
+  await supabaseAdmin.from("accounts").update(update).eq("id", account.id);
 
   // Write a summary history row.
   await supabaseAdmin.from("clock_out_logs").insert({
@@ -344,7 +360,10 @@ export async function refreshLogin(account: Account): Promise<{ ok: boolean; mes
   if (bearer) {
     await supabaseAdmin
       .from("accounts")
-      .update({ last_bearer: bearer })
+      .update({
+        last_bearer: bearer,
+        bearer_expires_at: computeBearerExpiry(bearer),
+      })
       .eq("id", account.id);
   }
 
