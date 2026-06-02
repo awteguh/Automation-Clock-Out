@@ -58,7 +58,7 @@ interface StepResult {
 /** Insert one raw request/response row into request_logs (best-effort). */
 async function logRequest(params: {
   account: Account;
-  action: TapAction;
+  action: TapAction | null;
   step: "login" | "tap";
   success: boolean;
   httpStatus: number | null;
@@ -315,7 +315,7 @@ export async function refreshLogin(account: Account): Promise<{ ok: boolean; mes
     const l = await login(account);
     await logRequest({
       account,
-      action: account.last_action || "out",
+      action: null, // login murni — bukan tap masuk/pulang
       step: "login",
       success: l.ok,
       httpStatus: l.status,

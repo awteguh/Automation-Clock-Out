@@ -11,10 +11,18 @@ import {
   RefreshCw,
   Loader2,
   KeyRound,
+  MoreVertical,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Card,
   CardContent,
@@ -91,7 +99,12 @@ export function AccountsManager({
   const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [busyAll, setBusyAll] = React.useState<TapAction | null>(null);
-  const [busyId, setBusyId] = React.useState<string | null>(null);
+  // Track WHICH account and WHICH action is running, so only the clicked
+  // button spins instead of every button in the row.
+  const [busy, setBusy] = React.useState<{
+    id: string;
+    kind: TapAction | "login";
+  } | null>(null);
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Account | null>(null);
@@ -163,7 +176,7 @@ export function AccountsManager({
   async function tapOne(account: Account, action: TapAction) {
     const verb = action === "in" ? "Absen masuk" : "Absen pulang";
     const path = action === "in" ? "clock-in" : "clock-out";
-    setBusyId(account.id);
+    setBusy({ id: account.id, kind: action });
     try {
       const res = await fetch(`/api/accounts/${account.id}/${path}`, {
         method: "POST",
@@ -180,14 +193,14 @@ export function AccountsManager({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Permintaan gagal");
     } finally {
-      setBusyId(null);
+      setBusy(null);
       await load();
       onAfterTap?.();
     }
   }
 
   async function loginOne(account: Account) {
-    setBusyId(account.id);
+    setBusy({ id: account.id, kind: "login" });
     try {
       const res = await fetch(`/api/accounts/${account.id}/login`, {
         method: "POST",
@@ -204,7 +217,7 @@ export function AccountsManager({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Permintaan gagal");
     } finally {
-      setBusyId(null);
+      setBusy(null);
       await load();
       onAfterTap?.();
     }
@@ -358,9 +371,9 @@ export function AccountsManager({
                           size="sm"
                           variant="secondary"
                           onClick={() => tapOne(account, "in")}
-                          disabled={busyId === account.id || busyAll !== null}
+                          disabled={busy?.id === account.id || busyAll !== null}
                         >
-                          {busyId === account.id ? (
+                          {busy?.id === account.id && busy.kind === "in" ? (
                             <Loader2 className="animate-spin" />
                           ) : (
                             <LogIn />
@@ -370,45 +383,55 @@ export function AccountsManager({
                         <Button
                           size="sm"
                           onClick={() => tapOne(account, "out")}
-                          disabled={busyId === account.id || busyAll !== null}
+                          disabled={busy?.id === account.id || busyAll !== null}
                         >
-                          {busyId === account.id ? (
+                          {busy?.id === account.id && busy.kind === "out" ? (
                             <Loader2 className="animate-spin" />
                           ) : (
                             <LogOut />
                           )}
                           Pulang
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => loginOne(account)}
-                          disabled={busyId === account.id || busyAll !== null}
-                          title="Perbarui Token"
-                        >
-                          {busyId === account.id ? (
-                            <Loader2 className="animate-spin" />
-                          ) : (
-                            <KeyRound className="h-4 w-4" />
-                          )}
-                          <span className="sr-only">Login</span>
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          onClick={() => openEdit(account)}
-                          title="Edit"
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          onClick={() => setAccountToDelete(account)}
-                          title="Hapus"
-                        >
-                          <Trash2 />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              disabled={
+                                busy?.id === account.id || busyAll !== null
+                              }
+                              title="Aksi lain"
+                            >
+                              {busy?.id === account.id &&
+                              busy.kind === "login" ? (
+                                <Loader2 className="animate-spin" />
+                              ) : (
+                                <MoreVertical />
+                              )}
+                              <span className="sr-only">Aksi lain</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => loginOne(account)}
+                            >
+                              <KeyRound />
+                              Perbarui Token
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEdit(account)}>
+                              <Pencil />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setAccountToDelete(account)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 />
+                              Hapus
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>

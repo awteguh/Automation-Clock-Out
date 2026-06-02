@@ -21,6 +21,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { RequestLog } from "@/lib/types";
 
 function timeOf(iso: string) {
@@ -40,6 +50,7 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
   function RequestLogs(_props, ref) {
     const [logs, setLogs] = React.useState<RequestLog[]>([]);
     const [loading, setLoading] = React.useState(true);
+    const [confirmClear, setConfirmClear] = React.useState(false);
 
     const load = React.useCallback(async () => {
       setLoading(true);
@@ -62,7 +73,7 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
     React.useImperativeHandle(ref, () => ({ refresh: load }), [load]);
 
     async function clearLogs() {
-      if (!confirm("Bersihkan semua log permintaan?")) return;
+      setConfirmClear(false);
       try {
         const res = await fetch("/api/logs", { method: "DELETE" });
         const json = await res.json();
@@ -75,6 +86,7 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
     }
 
     return (
+      <>
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div className="space-y-1.5">
@@ -92,7 +104,7 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
             <Button
               variant="outline"
               size="sm"
-              onClick={clearLogs}
+              onClick={() => setConfirmClear(true)}
               disabled={logs.length === 0}
             >
               <Trash2 />
@@ -156,6 +168,23 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bersihkan semua log?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tindakan ini tidak dapat dibatalkan. Semua {logs.length} log
+              permintaan akan dihapus permanen dari database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={clearLogs}>Bersihkan</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </>
     );
   }
 );
