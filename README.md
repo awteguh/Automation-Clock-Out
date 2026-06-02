@@ -41,8 +41,13 @@ npm install
 ### 2. Create the database tables
 
 In the Supabase Dashboard → **SQL Editor**, paste and run the contents of
-[`supabase/schema.sql`](supabase/schema.sql). This creates `accounts` +
-`clock_out_logs` and enables RLS (no policies — secrets are server-only).
+[`supabase/schema.sql`](supabase/schema.sql). This creates `accounts`,
+`clock_out_logs` and `request_logs`, and enables RLS (no policies — secrets are
+server-only).
+
+> Already created the tables from an earlier version? Run the incremental
+> migrations in [`supabase/migrations/`](supabase/migrations/) instead
+> (`0001` scheduling, `0002` clock-in, `0003` request logs).
 
 ### 3. Configure environment variables
 
@@ -103,11 +108,18 @@ external scheduler can trigger it instead of / in addition to the in-process one
 
 - **Windows Task Scheduler** → run every minute:
   `curl -X POST http://localhost:3000/api/cron/run -H "x-cron-secret: YOUR_SECRET"`
-- **Supabase pg_cron** (once the app is deployed and reachable) or **Vercel Cron**.
+- **Supabase pg_cron** (once the app is deployed and reachable) — run
+  [`supabase/pg_cron_setup.sql`](supabase/pg_cron_setup.sql) in the SQL Editor
+  after replacing `<APP_BASE_URL>` and `<CRON_SECRET>`.
+- **Vercel Cron**.
 
 Protect it by setting `CRON_SECRET` and sending it as the `x-cron-secret`
 header (or `Authorization: Bearer <secret>`). Left empty, the endpoint is open
 (fine for local use).
+
+> **Using an external cron?** Set `SCHEDULER_ENABLED=false` in the app env so the
+> in-process node-cron doesn't fire too. Supabase pg_cron only works against a
+> publicly reachable URL — it cannot reach `localhost`.
 
 ## API routes
 
