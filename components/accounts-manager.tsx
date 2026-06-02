@@ -130,6 +130,66 @@ function TokenStatus({ expiresAt }: { expiresAt: string | null }) {
   );
 }
 
+/**
+ * Battery-style token gauge. Full & green when freshly issued, draining toward
+ * empty + red as it nears the 72h expiry. Capacity = remaining / 72h.
+ */
+function TokenBattery({ expiresAt }: { expiresAt: string | null }) {
+  // Shared battery shell so the empty/no-token state looks identical.
+  const shell = (fill: React.ReactNode, nub = "bg-foreground/40") => (
+    <span className="flex items-center">
+      <span className="relative flex h-6 w-12 items-center rounded-[4px] border-2 border-foreground/40 p-[2px]">
+        {fill}
+      </span>
+      <span className={`h-3 w-1 rounded-r-sm ${nub}`} />
+    </span>
+  );
+
+  if (!expiresAt) {
+    return (
+      <span
+        className="inline-flex items-center gap-2 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground"
+        title="Belum ada token"
+      >
+        {shell(null)}
+        Tanpa token
+      </span>
+    );
+  }
+
+  const exp = new Date(expiresAt).getTime();
+  const ms = exp - Date.now();
+  const expired = ms <= 0;
+  const ratio = Math.max(0, Math.min(1, ms / TOKEN_TTL_MS));
+  const pct = Math.round(ratio * 100);
+
+  // green (sehat) → coral (<50%) → merah (<20% / habis)
+  const critical = expired || ratio < 0.2;
+  const fillColor = critical ? "bg-destructive" : ratio < 0.5 ? "bg-coral" : "bg-green";
+  const textTone = critical ? "text-destructive" : "text-muted-foreground";
+
+  const totalMin = Math.max(0, Math.round(ms / 60000));
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const label = expired ? "Habis" : days > 0 ? `${days} hari` : `${hours} jam`;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-2 font-mono text-xs uppercase tracking-[0.08em] ${textTone}`}
+      title={`Token berlaku sampai ${new Date(expiresAt).toLocaleString()}`}
+    >
+      {shell(
+        <span
+          className={`h-full rounded-[2px] transition-all ${fillColor}`}
+          style={{ width: `${Math.max(pct, 4)}%` }}
+        />,
+        critical ? "bg-destructive" : "bg-foreground/30"
+      )}
+      {label}
+    </span>
+  );
+}
+
 /** Today's date as 'YYYY-MM-DD' in WIB — matches the scheduler's run-date guard. */
 function todayInJakarta(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -532,6 +592,7 @@ export function AccountsManager({
 
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <StatusBadge account={account} />
+                    <TokenBattery expiresAt={account.bearer_expires_at} />
                     <span className="mono-label inline-flex items-center gap-0.5 text-muted-foreground/70 transition-colors group-hover:text-foreground">
                       Detail
                       <ChevronRight className="h-3 w-3" />
