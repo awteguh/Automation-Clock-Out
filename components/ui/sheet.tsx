@@ -80,7 +80,8 @@ const SheetHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-2 text-center sm:text-left",
+      // Bleed to the content edges so the divider spans full width.
+      "-mx-6 -mt-6 mb-5 flex flex-col gap-1 border-b border-border px-6 py-4 text-left",
       className
     )}
     {...props}
@@ -94,7 +95,7 @@ const SheetFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "-mx-6 -mb-6 mt-5 flex flex-col-reverse gap-2 border-t border-border px-6 py-4 sm:flex-row sm:justify-end",
       className
     )}
     {...props}

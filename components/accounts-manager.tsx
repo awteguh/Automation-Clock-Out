@@ -84,52 +84,6 @@ function DetailRow({
 // Token lifetime — must match TOKEN_TTL_HOURS in lib/clockout.ts.
 const TOKEN_TTL_MS = 72 * 3600 * 1000;
 
-/** Shows token expiry: time remaining, valid-until, and the implied last login. */
-function TokenStatus({ expiresAt }: { expiresAt: string | null }) {
-  if (!expiresAt) {
-    return (
-      <span className="text-sm text-muted-foreground">
-        Belum ada token — gunakan “Perbarui Token”.
-      </span>
-    );
-  }
-  const exp = new Date(expiresAt).getTime();
-  const ms = exp - Date.now();
-  const expired = ms <= 0;
-  const soon = !expired && ms < 12 * 3600 * 1000;
-
-  const totalMin = Math.abs(Math.round(ms / 60000));
-  const days = Math.floor(totalMin / 1440);
-  const hours = Math.floor((totalMin % 1440) / 60);
-  const rel = `${days > 0 ? `${days} hari ` : ""}${hours} jam`;
-
-  const tone = expired
-    ? "border-destructive/30 bg-destructive/5 text-destructive"
-    : soon
-      ? "border-coral-soft bg-coral/10 text-foreground"
-      : "border-green/20 bg-wash-green text-green";
-  const dot = expired ? "bg-destructive" : soon ? "bg-coral" : "bg-green";
-
-  const loginAt = new Date(exp - TOKEN_TTL_MS);
-
-  return (
-    <div className="space-y-1.5">
-      <span
-        className={`inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.08em] ${tone}`}
-      >
-        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-        {expired ? `Kadaluarsa ${rel} lalu` : `${rel} lagi`}
-      </span>
-      <p className="text-sm text-muted-foreground">
-        Berlaku sampai {new Date(expiresAt).toLocaleString()}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Login terakhir {loginAt.toLocaleString()}
-      </p>
-    </div>
-  );
-}
-
 /**
  * Battery-style token gauge. Full & green when freshly issued, draining toward
  * empty + red as it nears the 72h expiry. Capacity = remaining / 72h.
@@ -252,25 +206,30 @@ function AutoRunCell({ account }: { account: Account }) {
   );
 }
 
-function ScheduleBadge({
-  label,
-  time,
-  enabled,
-}: {
-  label: string;
-  time: string | null;
-  enabled: boolean;
-}) {
-  if (!time) {
-    return (
-      <span className="text-xs text-muted-foreground">{label} —</span>
-    );
-  }
+/** Combined IN/OUT schedule box — shared by the card and the detail sheet. */
+function ScheduleLine({ account }: { account: Account }) {
   return (
-    <Badge variant={enabled ? "default" : "outline"} className="w-fit">
-      {label} {time}
-      {!enabled && " (mati)"}
-    </Badge>
+    <span className="inline-flex items-center gap-2 rounded-sm border border-border bg-stone/50 px-2.5 py-1 font-mono text-xs tracking-[0.04em]">
+      <span
+        className={
+          account.clock_in_enabled
+            ? "text-foreground"
+            : "text-muted-foreground/60 line-through"
+        }
+      >
+        IN {account.scheduled_clock_in_time ?? "—"}
+      </span>
+      <span className="text-muted-foreground/40">/</span>
+      <span
+        className={
+          account.schedule_enabled
+            ? "text-foreground"
+            : "text-muted-foreground/60 line-through"
+        }
+      >
+        OUT {account.scheduled_time ?? "—"}
+      </span>
+    </span>
   );
 }
 
@@ -567,27 +526,7 @@ export function AccountsManager({
                     </div>
 
                     <div>
-                      <span className="inline-flex items-center gap-2 rounded-sm border border-border bg-stone/50 px-2.5 py-1 font-mono text-xs tracking-[0.04em]">
-                        <span
-                          className={
-                            account.clock_in_enabled
-                              ? "text-foreground"
-                              : "text-muted-foreground/60 line-through"
-                          }
-                        >
-                          IN {account.scheduled_clock_in_time ?? "—"}
-                        </span>
-                        <span className="text-muted-foreground/40">/</span>
-                        <span
-                          className={
-                            account.schedule_enabled
-                              ? "text-foreground"
-                              : "text-muted-foreground/60 line-through"
-                          }
-                        >
-                          OUT {account.scheduled_time ?? "—"}
-                        </span>
-                      </span>
+                      <ScheduleLine account={account} />
                     </div>
                   </div>
 
@@ -727,18 +666,7 @@ export function AccountsManager({
                   </DetailRow>
                 )}
                 <DetailRow label="Jadwal">
-                  <div className="flex flex-wrap gap-1.5">
-                    <ScheduleBadge
-                      label="IN"
-                      time={detailAccount.scheduled_clock_in_time}
-                      enabled={detailAccount.clock_in_enabled}
-                    />
-                    <ScheduleBadge
-                      label="OUT"
-                      time={detailAccount.scheduled_time}
-                      enabled={detailAccount.schedule_enabled}
-                    />
-                  </div>
+                  <ScheduleLine account={detailAccount} />
                 </DetailRow>
                 <DetailRow label="Aktivitas terakhir">
                   <span className="text-sm">
@@ -751,7 +679,28 @@ export function AccountsManager({
                   </span>
                 </DetailRow>
                 <DetailRow label="Token">
-                  <TokenStatus expiresAt={detailAccount.bearer_expires_at} />
+                  {detailAccount.bearer_expires_at ? (
+                    <div className="flex items-center gap-4">
+                      <TokenBattery expiresAt={detailAccount.bearer_expires_at} />
+                      <div className="space-y-0.5 text-xs text-muted-foreground">
+                        <p>
+                          Berlaku sampai{" "}
+                          {new Date(
+                            detailAccount.bearer_expires_at
+                          ).toLocaleString()}
+                        </p>
+                        <p>
+                          Login terakhir{" "}
+                          {new Date(
+                            new Date(detailAccount.bearer_expires_at).getTime() -
+                              TOKEN_TTL_MS
+                          ).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <TokenBattery expiresAt={null} />
+                  )}
                 </DetailRow>
                 <DetailRow label="Terakhir auto-run">
                   <AutoRunCell account={detailAccount} />
@@ -764,16 +713,6 @@ export function AccountsManager({
                   onClick={() => setDetailAccount(null)}
                 >
                   Tutup
-                </Button>
-                <Button
-                  onClick={() => {
-                    const a = detailAccount;
-                    setDetailAccount(null);
-                    openEdit(a);
-                  }}
-                >
-                  <Pencil />
-                  Edit
                 </Button>
               </SheetFooter>
             </>

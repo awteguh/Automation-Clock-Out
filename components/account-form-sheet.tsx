@@ -200,7 +200,7 @@ export function AccountFormSheet({
             Aktif
           </label>
 
-          <SheetFooter className="mt-4 pb-8">
+          <SheetFooter>
             <Button
               type="button"
               variant="outline"
