@@ -14,6 +14,7 @@ import {
   MoreVertical,
   Bot,
   Eye,
+  Zap,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -134,7 +135,15 @@ function TokenStatus({ expiresAt }: { expiresAt: string | null }) {
  * empty + red as it nears the 72h expiry. Capacity = remaining / 72h.
  */
 function TokenBattery({ expiresAt }: { expiresAt: string | null }) {
-  // Vertical battery shell: terminal nub on top, fill rises from the bottom.
+  // Tick every second for a live countdown.
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Vertical battery shell: terminal nub on top, fill rises from the bottom,
+  // with a centred lightning bolt (visible over fill & track via blend).
   const shell = (
     fill: React.ReactNode,
     label: React.ReactNode,
@@ -146,9 +155,14 @@ function TokenBattery({ expiresAt }: { expiresAt: string | null }) {
       {/* body with a faint track so empty space still reads as a battery */}
       <span className="relative flex h-16 w-8 flex-col justify-end overflow-hidden rounded-[5px] border-[1.5px] border-foreground/35 bg-stone/50 p-[3px]">
         {fill}
+        <Zap
+          className="pointer-events-none absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 text-white mix-blend-difference"
+          fill="currentColor"
+          strokeWidth={1.5}
+        />
       </span>
       <span
-        className={`mt-2 font-mono text-[11px] uppercase tracking-[0.1em] ${tone}`}
+        className={`mt-2 font-mono text-[11px] tracking-[0.04em] ${tone}`}
       >
         {label}
       </span>
@@ -156,13 +170,11 @@ function TokenBattery({ expiresAt }: { expiresAt: string | null }) {
   );
 
   if (!expiresAt) {
-    return (
-      <span title="Belum ada token">{shell(null, "Kosong")}</span>
-    );
+    return <span title="Belum ada token">{shell(null, "—")}</span>;
   }
 
   const exp = new Date(expiresAt).getTime();
-  const ms = exp - Date.now();
+  const ms = exp - now;
   const expired = ms <= 0;
   const ratio = Math.max(0, Math.min(1, ms / TOKEN_TTL_MS));
   const pct = Math.round(ratio * 100);
@@ -172,10 +184,14 @@ function TokenBattery({ expiresAt }: { expiresAt: string | null }) {
   const fillColor = critical ? "bg-destructive" : ratio < 0.5 ? "bg-coral" : "bg-green";
   const textTone = critical ? "text-destructive" : "text-muted-foreground";
 
-  const totalMin = Math.max(0, Math.round(ms / 60000));
-  const days = Math.floor(totalMin / 1440);
-  const hours = Math.floor((totalMin % 1440) / 60);
-  const label = expired ? "Habis" : days > 0 ? `${days} hari` : `${hours} jam`;
+  // Live HH:MM:SS countdown (hours can exceed 24).
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const label = expired
+    ? "Habis"
+    : `${pad(Math.floor(totalSec / 3600))}:${pad(
+        Math.floor((totalSec % 3600) / 60)
+      )}:${pad(totalSec % 60)}`;
 
   return (
     <span title={`Token berlaku sampai ${new Date(expiresAt).toLocaleString()}`}>

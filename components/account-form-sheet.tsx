@@ -19,7 +19,8 @@ const EMPTY: AccountInput = {
   employee_id: "",
   password: "",
   ssid: "LT. 2 Bharata-5G",
-  mac_address: "",
+  // MAC di-hardcode saat tap (lib/clockout.ts), jadi cukup default di sini.
+  mac_address: "C4:B2:5B:CE:DB:CF",
   device_id: "Currently unused",
   latitude: -7.704195315890301,
   longitude: 109.0258285203252,
