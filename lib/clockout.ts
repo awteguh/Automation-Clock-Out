@@ -7,6 +7,7 @@ const API_BASE =
 
 const LOGIN_PATH = "/auth/login";
 const TAP_PATH = "/api/attendance/tap?method=Mobile";
+const MOOD_PATH = "/api/attendance/mood";
 
 /**
  * Try to pull a bearer token out of an unknown login response shape.
@@ -68,7 +69,7 @@ interface StepResult {
 async function logRequest(params: {
   account: Account;
   action: TapAction | null;
-  step: "login" | "tap";
+  step: "login" | "tap" | "mood";
   success: boolean;
   httpStatus: number | null;
   body: string;
@@ -154,8 +155,8 @@ function applyJitter(lat: number, lng: number, maxMeters = 50) {
 
 /** Call the attendance tap endpoint. Returns the raw outcome (no throw on HTTP errors). */
 async function tap(account: Account, token: string): Promise<StepResult> {
-  const baseLat = -7.704195315890301;
-  const baseLng = 109.0258285203252;
+  const baseLat = -7.438400322394673;
+  const baseLng = 108.7680295990381;
   const { latitude, longitude } = applyJitter(baseLat, baseLng, 50);
 
   const res = await fetch(`${API_BASE}${TAP_PATH}`, {
@@ -194,6 +195,39 @@ async function tap(account: Account, token: string): Promise<StepResult> {
     status: res.status,
     bodyText: text,
     message: (json?.message as string) || text || "Tap OK",
+  };
+}
+
+/** Send the account's chosen mood. Body: { emoji: <mood key> }. */
+async function sendMood(token: string, mood: string): Promise<StepResult> {
+  const res = await fetch(`${API_BASE}${MOOD_PATH}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ emoji: mood }),
+    cache: "no-store",
+  });
+
+  const { json, text } = await readBody(res);
+
+  if (!res.ok) {
+    const msg = json?.message || json?.error || text || `HTTP ${res.status}`;
+    return {
+      ok: false,
+      status: res.status,
+      bodyText: text,
+      message: `Mood failed (${res.status}): ${msg}`,
+    };
+  }
+
+  return {
+    ok: true,
+    status: res.status,
+    bodyText: text,
+    message: (json?.message as string) || text || "Mood OK",
   };
 }
 
@@ -272,6 +306,31 @@ export async function tapAttendance(
         });
         status = t.ok ? "success" : "error";
         message = t.message;
+
+        // Setelah tap sukses, kirim mood pilihan akun (best-effort —
+        // kegagalan mood tidak menggagalkan clock-in/out).
+        if (t.ok && account.mood) {
+          try {
+            const m = await sendMood(bearer, account.mood);
+            await logRequest({
+              account,
+              action,
+              step: "mood",
+              success: m.ok,
+              httpStatus: m.status,
+              body: m.bodyText,
+            });
+          } catch (err) {
+            await logRequest({
+              account,
+              action,
+              step: "mood",
+              success: false,
+              httpStatus: null,
+              body: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
       } catch (err) {
         status = "error";
         message = err instanceof Error ? err.message : String(err);
@@ -368,6 +427,94 @@ export async function refreshLogin(account: Account): Promise<{ ok: boolean; mes
   }
 
   return { ok: status === "success", message };
+}
+
+/**
+ * Manually send the account's mood (no tap). Logs in once if there's no token,
+ * same as a manual clock-in/out.
+ */
+export async function sendMoodManual(
+  account: Account
+): Promise<{ ok: boolean; message: string }> {
+  let bearer: string | null = account.last_bearer;
+  let loggedIn = false;
+
+  // Ensure a token — manual action may log in once.
+  if (!bearer) {
+    try {
+      const l = await login(account);
+      await logRequest({
+        account,
+        action: null,
+        step: "login",
+        success: l.ok,
+        httpStatus: l.status,
+        body: l.bodyText,
+      });
+      if (l.ok) {
+        bearer = l.token ?? null;
+        loggedIn = true;
+      } else {
+        return { ok: false, message: l.message };
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await logRequest({
+        account,
+        action: null,
+        step: "login",
+        success: false,
+        httpStatus: null,
+        body: message,
+      });
+      return { ok: false, message };
+    }
+  }
+
+  if (!bearer) {
+    return {
+      ok: false,
+      message: 'Tidak ada token. Gunakan "Perbarui Token" terlebih dahulu.',
+    };
+  }
+
+  let result: { ok: boolean; message: string };
+  try {
+    const m = await sendMood(bearer, account.mood ?? "moodNeutral");
+    await logRequest({
+      account,
+      action: null,
+      step: "mood",
+      success: m.ok,
+      httpStatus: m.status,
+      body: m.bodyText,
+    });
+    result = { ok: m.ok, message: m.message };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await logRequest({
+      account,
+      action: null,
+      step: "mood",
+      success: false,
+      httpStatus: null,
+      body: message,
+    });
+    result = { ok: false, message };
+  }
+
+  // Persist a freshly obtained token + expiry.
+  if (loggedIn && bearer) {
+    await supabaseAdmin
+      .from("accounts")
+      .update({
+        last_bearer: bearer,
+        bearer_expires_at: computeBearerExpiry(bearer),
+      })
+      .eq("id", account.id);
+  }
+
+  return result;
 }
 
 /** Clock out one account (tap fast). */

@@ -28,6 +28,9 @@ create table if not exists public.accounts (
   clock_in_enabled        boolean not null default false,
   last_clock_in_run_date  date,                   -- guard: at most one auto clock-in per day
 
+  -- mood sent to /api/attendance/mood with each tap (stores the mood key)
+  mood                    text not null default 'moodNeutral',
+
   -- result bookkeeping
   last_bearer        text,
   bearer_expires_at  timestamptz,                 -- last login + 72h (token expiry)

@@ -57,6 +57,7 @@ export async function POST(req: Request) {
     schedule_enabled: body.schedule_enabled ?? false,
     scheduled_clock_in_time: body.scheduled_clock_in_time?.trim() || null,
     clock_in_enabled: body.clock_in_enabled ?? false,
+    mood: body.mood?.trim() || "moodNeutral",
   };
 
   const { data, error } = await supabaseAdmin

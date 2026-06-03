@@ -31,6 +31,7 @@ export async function PATCH(req: Request, { params }: Params) {
     "schedule_enabled",
     "scheduled_clock_in_time",
     "clock_in_enabled",
+    "mood",
   ];
 
   const update: Record<string, unknown> = {};

@@ -17,6 +17,7 @@ export interface Account {
   scheduled_clock_in_time: string | null; // clock-in 'HH:MM'
   clock_in_enabled: boolean;
   last_clock_in_run_date: string | null; // 'YYYY-MM-DD'
+  mood: string | null; // mood key sent with each tap, e.g. 'moodHappy'
   last_bearer: string | null;
   bearer_expires_at: string | null; // ISO timestamp: last login + 72h
   last_status: "success" | "error" | null;
@@ -42,6 +43,7 @@ export interface AccountInput {
   schedule_enabled: boolean;
   scheduled_clock_in_time: string | null; // clock-in 'HH:MM' or null
   clock_in_enabled: boolean;
+  mood: string; // mood key sent with each tap
 }
 
 export interface ClockOutLog {
@@ -59,7 +61,7 @@ export interface RequestLog {
   account_id: string | null;
   account_label: string | null;
   action: TapAction | null;
-  step: "login" | "tap";
+  step: "login" | "tap" | "mood";
   success: boolean;
   http_status: number | null;
   response_body: string | null;

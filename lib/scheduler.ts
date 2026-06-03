@@ -60,6 +60,48 @@ function isDue(time: string | null, minutes: number): boolean {
   return minutes >= sched && minutes - sched <= GRACE_MIN;
 }
 
+// Clock-in is fired at a randomized minute within ±10 of the schedule, but never
+// at/after 08:00 so it can't be marked late.
+const CLOCK_IN_JITTER_MIN = 10;
+const CLOCK_IN_LATE_LIMIT = 8 * 60; // 08:00 in minutes-since-midnight
+
+/**
+ * Deterministic pseudo-random integer in [min, max] from a seed string (FNV-1a).
+ * Same seed → same value, so the chosen minute is stable across the day's ticks
+ * but varies per account and per day.
+ */
+function seededInt(seed: string, min: number, max: number): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const r = ((h >>> 0) % 1_000_000) / 1_000_000; // 0..1
+  return Math.floor(r * (max - min + 1)) + min;
+}
+
+/**
+ * Randomized clock-in target (minutes-since-midnight): scheduled ±10 minutes,
+ * clamped so it never reaches 08:00. Stable per (account, date).
+ */
+function clockInTarget(
+  time: string | null,
+  accountId: string,
+  date: string
+): number | null {
+  const sched = time ? parseHHMM(time) : null;
+  if (sched === null) return null;
+  const offset = seededInt(
+    `${date}:${accountId}`,
+    -CLOCK_IN_JITTER_MIN,
+    CLOCK_IN_JITTER_MIN
+  );
+  let target = sched + offset;
+  if (target >= CLOCK_IN_LATE_LIMIT) target = CLOCK_IN_LATE_LIMIT - 1; // < 08:00
+  if (target < 0) target = 0;
+  return target;
+}
+
 /**
  * Find every active account whose clock-in or clock-out time is due now (and
  * that hasn't already auto-run that action today) and tap it. Safe to call from
@@ -83,11 +125,18 @@ export async function runDueClockOuts(): Promise<RunSummary> {
     const results: ClockOutResult[] = [];
 
     for (const account of data ?? []) {
-      // Clock IN due?
+      // Clock IN due? (randomized ±10 min, capped before 08:00)
+      const inTarget = clockInTarget(
+        account.scheduled_clock_in_time,
+        account.id,
+        date
+      );
       if (
         account.clock_in_enabled &&
         account.last_clock_in_run_date !== date &&
-        isDue(account.scheduled_clock_in_time, minutes)
+        inTarget !== null &&
+        minutes >= inTarget &&
+        minutes - inTarget <= GRACE_MIN
       ) {
         // Automation: cukup tap dengan token tersimpan, tidak pernah login.
         results.push(await tapAttendance(account, "in", { allowLogin: false }));

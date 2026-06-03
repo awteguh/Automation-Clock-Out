@@ -15,6 +15,7 @@ import {
   Bot,
   Eye,
   Zap,
+  Smile,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AccountFormSheet } from "@/components/account-form-sheet";
+import { moodByKey } from "@/lib/moods";
 import type {
   Account,
   AccountInput,
@@ -245,7 +247,7 @@ export function AccountsManager({
   // button spins instead of every button in the row.
   const [busy, setBusy] = React.useState<{
     id: string;
-    kind: TapAction | "login";
+    kind: TapAction | "login" | "mood";
   } | null>(null);
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -355,6 +357,30 @@ export function AccountsManager({
       } else {
         toast.error(
           `${account.label} — Login: ${result?.message || json.error || "Gagal"}`
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Permintaan gagal");
+    } finally {
+      setBusy(null);
+      await load();
+      onAfterTap?.();
+    }
+  }
+
+  async function sendMoodOne(account: Account) {
+    setBusy({ id: account.id, kind: "mood" });
+    try {
+      const res = await fetch(`/api/accounts/${account.id}/mood`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      const result = json.result as { ok: boolean; message: string } | undefined;
+      if (result?.ok) {
+        toast.success(`${account.label} — Mood: ${result.message}`);
+      } else {
+        toast.error(
+          `${account.label} — Mood: ${result?.message || json.error || "Gagal"}`
         );
       }
     } catch (err) {
@@ -558,8 +584,7 @@ export function AccountsManager({
                         disabled={busy?.id === account.id || busyAll !== null}
                         title="Aksi lain"
                       >
-                        {busy?.id === account.id &&
-                        (busy.kind === "in" || busy.kind === "out") ? (
+                        {busy?.id === account.id && busy.kind !== "login" ? (
                           <Loader2 className="animate-spin" />
                         ) : (
                           <MoreVertical />
@@ -581,6 +606,13 @@ export function AccountsManager({
                       >
                         <LogOut />
                         Pulang
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => sendMoodOne(account)}
+                        disabled={busy?.id === account.id || busyAll !== null}
+                      >
+                        <Smile />
+                        Kirim Mood
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setDetailAccount(account)}>
@@ -657,6 +689,14 @@ export function AccountsManager({
                       <Badge variant="secondary">nonaktif</Badge>
                     )}
                   </div>
+                </DetailRow>
+                <DetailRow label="Mood">
+                  <span className="inline-flex items-center gap-2 text-sm">
+                    <span className="text-lg leading-none">
+                      {moodByKey(detailAccount.mood).emoji}
+                    </span>
+                    {moodByKey(detailAccount.mood).name}
+                  </span>
                 </DetailRow>
                 {detailAccount.last_message && (
                   <DetailRow label="Pesan terakhir">

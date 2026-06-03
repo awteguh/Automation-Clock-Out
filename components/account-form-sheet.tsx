@@ -12,6 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { MOODS, DEFAULT_MOOD } from "@/lib/moods";
 import type { Account, AccountInput } from "@/lib/types";
 
 const EMPTY: AccountInput = {
@@ -22,13 +24,14 @@ const EMPTY: AccountInput = {
   // MAC di-hardcode saat tap (lib/clockout.ts), jadi cukup default di sini.
   mac_address: "C4:B2:5B:CE:DB:CF",
   device_id: "Currently unused",
-  latitude: -7.704195315890301,
-  longitude: 109.0258285203252,
+  latitude: -7.438400322394673,
+  longitude: 108.7680295990381,
   is_active: true,
   scheduled_time: "16:00",
   schedule_enabled: false,
   scheduled_clock_in_time: "07:30",
   clock_in_enabled: false,
+  mood: DEFAULT_MOOD,
 };
 
 interface Props {
@@ -68,6 +71,7 @@ export function AccountFormSheet({
           schedule_enabled: account.schedule_enabled,
           scheduled_clock_in_time: account.scheduled_clock_in_time ?? "08:00",
           clock_in_enabled: account.clock_in_enabled,
+          mood: account.mood ?? DEFAULT_MOOD,
         }
       : EMPTY;
     setValues(next);
@@ -151,6 +155,31 @@ export function AccountFormSheet({
                 placeholder="••••••••"
                 required
               />
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Mood (dikirim saat tap)</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {MOODS.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => set("mood", m.key)}
+                  title={m.name}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-sm border px-1 py-2 transition-colors",
+                    values.mood === m.key
+                      ? "border-foreground bg-stone/60"
+                      : "border-border hover:bg-stone/40"
+                  )}
+                >
+                  <span className="text-xl leading-none">{m.emoji}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {m.name}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
 
