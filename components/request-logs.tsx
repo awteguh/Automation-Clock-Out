@@ -90,15 +90,15 @@ export const RequestLogs = React.forwardRef<RequestLogsHandle>(
     return (
       <>
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div className="space-y-1.5">
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-1.5">
             <p className="mono-label">Diagnostik</p>
             <CardTitle>Log Permintaan</CardTitle>
             <CardDescription>
               Respons mentah login &amp; tap ({logs.length} ditampilkan, 100 terbaru)
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={load} disabled={loading}>
               <RefreshCw className={loading ? "animate-spin" : ""} />
               Muat Ulang
