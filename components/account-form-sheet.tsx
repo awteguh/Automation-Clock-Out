@@ -212,6 +212,10 @@ export function AccountFormSheet({
                 }
                 disabled={!values.clock_in_enabled}
               />
+              <p className="text-xs text-muted-foreground">
+                Waktu aktual diacak ±10 menit dari jam ini (tidak pernah melewati
+                08:00), agar tidak selalu sama.
+              </p>
             </div>
           </div>
 
