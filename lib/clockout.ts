@@ -307,9 +307,9 @@ export async function tapAttendance(
         status = t.ok ? "success" : "error";
         message = t.message;
 
-        // Setelah tap sukses, kirim mood pilihan akun (best-effort —
-        // kegagalan mood tidak menggagalkan clock-in/out).
-        if (t.ok && account.mood) {
+        // Setelah tap MASUK sukses, kirim mood pilihan akun (best-effort —
+        // kegagalan mood tidak menggagalkan clock-in; tidak dikirim saat pulang).
+        if (action === "in" && t.ok && account.mood) {
           try {
             const m = await sendMood(bearer, account.mood);
             await logRequest({

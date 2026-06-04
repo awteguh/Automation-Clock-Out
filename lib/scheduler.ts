@@ -113,6 +113,12 @@ export async function runDueClockOuts(): Promise<RunSummary> {
   try {
     const { date, minutes } = nowInTz();
 
+    // Hari Minggu libur — automation tidak jalan sama sekali.
+    // `date` adalah tanggal lokal (WIB); parse sebagai UTC agar weekday-nya pas.
+    if (new Date(`${date}T00:00:00Z`).getUTCDay() === 0) {
+      return { skipped: true, date, due: 0, results: [] };
+    }
+
     const { data, error } = await supabaseAdmin
       .from("accounts")
       .select("*")
