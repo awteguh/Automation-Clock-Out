@@ -65,6 +65,10 @@ function isDue(time: string | null, minutes: number): boolean {
 const CLOCK_IN_JITTER_MIN = 10;
 const CLOCK_IN_LATE_LIMIT = 8 * 60; // 08:00 in minutes-since-midnight
 
+// On Saturdays the clock-out time differs from weekdays.
+const SATURDAY = 6;
+const SATURDAY_CLOCK_OUT = "13:00";
+
 /**
  * Deterministic pseudo-random integer in [min, max] from a seed string (FNV-1a).
  * Same seed → same value, so the chosen minute is stable across the day's ticks
@@ -113,9 +117,11 @@ export async function runDueClockOuts(): Promise<RunSummary> {
   try {
     const { date, minutes } = nowInTz();
 
+    // Weekday dari tanggal lokal (WIB); parse sebagai UTC agar pas. 0=Min, 6=Sab.
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+
     // Hari Minggu libur — automation tidak jalan sama sekali.
-    // `date` adalah tanggal lokal (WIB); parse sebagai UTC agar weekday-nya pas.
-    if (new Date(`${date}T00:00:00Z`).getUTCDay() === 0) {
+    if (weekday === 0) {
       return { skipped: true, date, due: 0, results: [] };
     }
 
@@ -152,11 +158,13 @@ export async function runDueClockOuts(): Promise<RunSummary> {
           .eq("id", account.id);
       }
 
-      // Clock OUT due?
+      // Clock OUT due? Sabtu pakai jam khusus (13:00), hari lain pakai jadwal.
+      const outTime =
+        weekday === SATURDAY ? SATURDAY_CLOCK_OUT : account.scheduled_time;
       if (
         account.schedule_enabled &&
         account.last_scheduled_run_date !== date &&
-        isDue(account.scheduled_time, minutes)
+        isDue(outTime, minutes)
       ) {
         // Automation: cukup tap dengan token tersimpan, tidak pernah login.
         results.push(await tapAttendance(account, "out", { allowLogin: false }));
